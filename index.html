@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gestor de Ventas 1.12 — Precio limpio</title>
+<title>Gestor de Ventas 1.13 — Catálogo online</title>
 <meta name="theme-color" content="#1a4d80">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -16,6 +16,7 @@
   .header-fields input::placeholder { color: rgba(255,255,255,.7); }
   .header-fields input:focus { outline: none; background: rgba(255,255,255,.25); border-color: #fff; }
   .header-fields .ayuda-mini { font-size: 11px; color: rgba(255,255,255,.8); margin-top: -4px; padding-left: 2px; }
+  .header-fields .seccion-titulo { font-size: 11px; color: rgba(255,255,255,.85); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin: 6px 0 -2px; padding-left: 2px; }
 
   .selector-negocio { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
   .selector-negocio select { flex: 1; min-width: 110px; padding: 9px 10px; font-size: 14px; font-weight: 600; border: 1px solid rgba(255,255,255,.35); border-radius: 8px; background: rgba(255,255,255,.2); color: #fff; font-family: inherit; cursor: pointer; }
@@ -90,6 +91,7 @@
   .barra-global .btn-texto { background: linear-gradient(135deg, #2d7ac0, #1a4d80); color: #fff; }
   .barra-global .btn-mosaico { background: linear-gradient(135deg, #7b3fa0, #5d2d7a); color: #fff; }
   .barra-global .btn-historia { background: linear-gradient(135deg, #e1306c, #833ab4); color: #fff; flex: 1 1 100%; }
+  .barra-global .btn-online { background: linear-gradient(135deg, #0a8fdc, #1a4d80); color: #fff; flex: 1 1 100%; }
 
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 1000; padding: 14px; display: flex; align-items: center; justify-content: center; overflow-y: auto; }
   .modal-caja { background: #fff; border-radius: 16px; padding: 20px; max-width: 480px; width: 100%; margin: auto; box-shadow: 0 12px 48px rgba(0,0,0,.4); max-height: 92vh; overflow-y: auto; }
@@ -174,10 +176,17 @@
     <span class="arrow">▼</span> <span id="txtToggle">Ver dirección y contacto</span>
   </button>
   <div class="header-fields collapsed" id="headerFields">
+    <div class="seccion-titulo">Negocio</div>
     <input type="text" id="negNombre" placeholder="Nombre del negocio" oninput="guardarHeader()" maxlength="60">
     <input type="text" id="negDireccion" placeholder="📍 Dirección" oninput="guardarHeader()" maxlength="120">
     <input type="text" id="negTelefono" placeholder="📱 WhatsApp o Link (https://...)" oninput="guardarHeader()" maxlength="200">
     <div class="ayuda-mini">💡 Acepta teléfono (abre WhatsApp) o link https:// (abre el link directo)</div>
+
+    <div class="seccion-titulo">Catálogo online y redes</div>
+    <input type="text" id="negLinkCatalogo" placeholder="🔗 Link del catálogo online (https://...)" oninput="guardarHeader()" maxlength="500">
+    <div class="ayuda-mini">💡 URL donde subes el catálogo HTML generado. Se usa para compartir y abrir online.</div>
+    <input type="text" id="negLinkImagen" placeholder="🖼️ Link de la imagen para redes (https://...)" oninput="guardarHeader()" maxlength="500">
+    <div class="ayuda-mini">💡 Imagen que mostrará WhatsApp/Facebook/Telegram al pegar el link (mín. 1200×630).</div>
   </div>
 </header>
 
@@ -230,7 +239,6 @@
     <label>Etiqueta destacada (opcional)
       <input type="text" id="prodEtiqueta" maxlength="24" placeholder="Ej: 🔥 Oferta, ⭐ Nuevo, 💥 2×1">
     </label>
-    </label>
     <label>Enlace del producto (opcional)
       <input type="text" id="prodEnlace" maxlength="500" placeholder="https://... (web, Facebook, Instagram, etc.)">
     </label>
@@ -249,6 +257,7 @@
   <button class="btn-texto" onclick="enviarCatalogoTexto()">📝 Catálogo texto</button>
   <button class="btn-mosaico" onclick="abrirModalMosaico()">🖼️ Mosaico</button>
   <button class="btn-historia" onclick="abrirModalHistoria()">📱 Historia 1×1 (WhatsApp/Facebook)</button>
+  <button class="btn-online" onclick="abrirCatalogoOnline()">🌐 Ver catálogo online</button>
 </div>
 
 <div id="modalCatalogo" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalCatalogo()">
@@ -1037,9 +1046,13 @@ function persistirAhora() {
   var nomEl = document.getElementById('negNombre');
   var dirEl = document.getElementById('negDireccion');
   var telEl = document.getElementById('negTelefono');
+  var linkCatEl = document.getElementById('negLinkCatalogo');
+  var linkImgEl = document.getElementById('negLinkImagen');
   if (nomEl) n.nombre = nomEl.value.trim() || 'Mi Negocio';
   if (dirEl) n.direccion = dirEl.value.trim();
   if (telEl) n.telefono = telEl.value.trim();
+  if (linkCatEl) n.linkCatalogo = linkCatEl.value.trim();
+  if (linkImgEl) n.linkImagen = linkImgEl.value.trim();
   guardarRegistro(r);
 
   var negocioId = n.id;
@@ -1095,6 +1108,10 @@ function cargarHeaderDelNegocioActivo() {
   document.getElementById('negNombre').value = n.nombre || '';
   document.getElementById('negDireccion').value = n.direccion || '';
   document.getElementById('negTelefono').value = n.telefono || '';
+  var linkCatEl = document.getElementById('negLinkCatalogo');
+  var linkImgEl = document.getElementById('negLinkImagen');
+  if (linkCatEl) linkCatEl.value = n.linkCatalogo || '';
+  if (linkImgEl) linkImgEl.value = n.linkImagen || '';
 }
 
 function actualizarTitulo() {
@@ -1109,6 +1126,8 @@ function guardarHeader() {
   n.nombre = document.getElementById('negNombre').value.trim() || 'Mi Negocio';
   n.direccion = document.getElementById('negDireccion').value.trim();
   n.telefono = document.getElementById('negTelefono').value.trim();
+  n.linkCatalogo = document.getElementById('negLinkCatalogo').value.trim();
+  n.linkImagen = document.getElementById('negLinkImagen').value.trim();
   guardarRegistro(r);
   renderSelectorNegocios();
   actualizarTitulo();
@@ -1118,7 +1137,7 @@ function cargar() {
   var r = obtenerRegistro();
   if (!r.lista.length) {
     var id = generarIdNegocio();
-    r.lista.push({ id: id, nombre: 'Mi Negocio', direccion: '', telefono: '' });
+    r.lista.push({ id: id, nombre: 'Mi Negocio', direccion: '', telefono: '', linkCatalogo: '', linkImagen: '' });
     r.activo = id;
     guardarRegistro(r);
   }
@@ -1172,7 +1191,7 @@ function crearNegocio() {
   }
   persistirAhora().then(function () {
     var id = generarIdNegocio();
-    r.lista.push({ id: id, nombre: nombre, telefono: telefono, direccion: direccion });
+    r.lista.push({ id: id, nombre: nombre, telefono: telefono, direccion: direccion, linkCatalogo: '', linkImagen: '' });
     r.activo = id;
     guardarRegistro(r);
     productos = [];
@@ -1250,7 +1269,6 @@ function comprimirImagen(file, maxLado, calidad) {
           canvas.width = lado; canvas.height = lado;
           var ctx = canvas.getContext('2d');
           ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, lado, lado);
-          // Recorte tipo "cover": llena todo el cuadrado
           var ratioC = Math.max(lado / img.width, lado / img.height);
           var cw = img.width * ratioC;
           var ch = img.height * ratioC;
@@ -1583,7 +1601,7 @@ function llenarFiltroCategorias() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// GRID (panel gestor) — sin botones foto/email
+// GRID (panel gestor)
 // ═══════════════════════════════════════════════════════════
 function renderGrid() {
   var cont = document.getElementById('gridProductos');
@@ -1671,10 +1689,10 @@ function limpiarTodoCatalogo() {
 function exportarRespaldoNegocio() {
   var neg = getDatosNegocio();
   var data = {
-    negocio: { id: negocioActivo().id, nombre: neg.nombre, direccion: neg.direccion, telefono: neg.telefono },
+    negocio: { id: negocioActivo().id, nombre: neg.nombre, direccion: neg.direccion, telefono: neg.telefono, linkCatalogo: neg.linkCatalogo, linkImagen: neg.linkImagen },
     productos: productos,
     fecha: new Date().toISOString(),
-    version: 'v9'
+    version: 'v10'
   };
   var json = JSON.stringify(data, null, 2);
   var nombreBase = sanitizarNombre(neg.nombre) + '_' + fechaArchivo();
@@ -1752,6 +1770,8 @@ function seleccionarRespaldo(tipo) {
               n.nombre = data.negocio.nombre || n.nombre;
               n.direccion = data.negocio.direccion || '';
               n.telefono = data.negocio.telefono || '';
+              if (data.negocio.linkCatalogo) n.linkCatalogo = data.negocio.linkCatalogo;
+              if (data.negocio.linkImagen) n.linkImagen = data.negocio.linkImagen;
               guardarRegistro(r);
               cargarHeaderDelNegocioActivo();
               actualizarTitulo();
@@ -1887,7 +1907,9 @@ function getDatosNegocio() {
   return {
     nombre: document.getElementById('negNombre').value.trim() || 'Mi Negocio',
     direccion: document.getElementById('negDireccion').value.trim(),
-    telefono: document.getElementById('negTelefono').value.trim()
+    telefono: document.getElementById('negTelefono').value.trim(),
+    linkCatalogo: (document.getElementById('negLinkCatalogo') || {}).value ? document.getElementById('negLinkCatalogo').value.trim() : '',
+    linkImagen: (document.getElementById('negLinkImagen') || {}).value ? document.getElementById('negLinkImagen').value.trim() : ''
   };
 }
 function generarTextoProducto(p) {
@@ -1909,6 +1931,7 @@ function generarTextoProducto(p) {
     if (info.tipo === 'link') t += '🔗 ' + info.valor + '\n';
     else if (info.tipo === 'tel') t += '📞 ' + neg.telefono + '\n';
   }
+  if (neg.linkCatalogo) t += '\n🌐 Catálogo completo: ' + neg.linkCatalogo + '\n';
   t += '\n_Responde para hacer tu pedido_ 💙';
   return t;
 }
@@ -1967,7 +1990,7 @@ function descargarFoto(dataUrl, nombre) {
   } catch(e) {}
 }
 
-// ── CATÁLOGO TEXTO BREVE: 3 líneas por producto ────────────
+// ── CATÁLOGO TEXTO BREVE: 3 líneas + link online ─────────────
 function generarTextoCatalogo() {
   var neg = getDatosNegocio();
   var cat = document.getElementById('filtroCategoria').value;
@@ -1982,9 +2005,9 @@ function generarTextoCatalogo() {
     if (info.tipo === 'link') t += '🔗 ' + info.valor + '\n';
     else if (info.tipo === 'tel') t += '📞 ' + neg.telefono + '\n';
   }
+  if (neg.linkCatalogo) t += '🌐 ' + neg.linkCatalogo + '\n';
   t += '\n━━━━━━━━━━━━━━━━━━\n\n';
 
-  // Agrupado por categoría, 3 líneas por producto
   var grupos = {};
   lista.forEach(function (p) {
     var c = p.categoria || 'General';
@@ -2039,6 +2062,24 @@ function enviarCatalogoTexto() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 🌐 ABRIR CATÁLOGO ONLINE
+// ═══════════════════════════════════════════════════════════
+function abrirCatalogoOnline() {
+  var neg = getDatosNegocio();
+  if (!neg.linkCatalogo) {
+    mostrarToast('Primero configura el link del catálogo online en los datos del negocio.', 'warn');
+    if (document.getElementById('headerFields').classList.contains('collapsed')) toggleHeader();
+    setTimeout(function () {
+      var el = document.getElementById('negLinkCatalogo');
+      if (el) { el.focus(); el.scrollIntoView({behavior:'smooth', block:'center'}); }
+    }, 300);
+    return;
+  }
+  window.open(neg.linkCatalogo, '_blank');
+  mostrarToast('🌐 Abriendo catálogo online...', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════
 // 🖼️ MOSAICO — FONDO BLANCO
 // ═══════════════════════════════════════════════════════════
 function abrirModalMosaico() {
@@ -2064,7 +2105,6 @@ function generarMosaicoCatalogo() {
   var cols = parseInt(document.getElementById('mosaicoCols').value, 10) || 3;
   cerrarModalMosaico();
 
-  // 1) Precargar todas las imágenes
   Promise.all(lista.map(function(p) {
     if (!p.foto) return Promise.resolve();
     return new Promise(function(resolve) {
@@ -2086,11 +2126,9 @@ function generarMosaicoCatalogo() {
     var ctx = canvas.getContext('2d');
     var neg = getDatosNegocio();
 
-    // Fondo blanco
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, H);
 
-    // Header sobre blanco
     ctx.fillStyle = '#1a4d80';
     ctx.font = 'bold ' + (cols <= 2 ? 42 : 36) + 'px Arial';
     ctx.textAlign = 'center';
@@ -2105,14 +2143,12 @@ function generarMosaicoCatalogo() {
       ctx.fillText('📍 ' + neg.direccion.substring(0, 60), W/2, 108);
     }
 
-    // Tarjetas con foto uniforme (cover) y sin fondo azul
     lista.forEach(function (p, i) {
       var col = i % cols;
       var fila = Math.floor(i / cols);
       var cx = col * tam;
       var cy = headerH + fila * tam;
 
-      // Tarjeta con borde suave
       ctx.fillStyle = '#ffffff';
       redondearRect(ctx, cx + 8, cy + 8, tam - 16, tam - 16, 16);
       ctx.fill();
@@ -2121,7 +2157,6 @@ function generarMosaicoCatalogo() {
       redondearRect(ctx, cx + 8, cy + 8, tam - 16, tam - 16, 16);
       ctx.stroke();
 
-      // Marco de foto
       var fPad = 14;
       var fSize = tam - 16 - fPad * 2;
       var fX = cx + 8 + fPad;
@@ -2131,7 +2166,6 @@ function generarMosaicoCatalogo() {
       redondearRect(ctx, fX, fY, fSize, fSize, 10);
       ctx.fill();
 
-      // Foto con "cover" (recorte) — todas del mismo tamaño
       if (p._imgEl && p._imgEl.width && p._imgEl.height) {
         try {
           var img = p._imgEl;
@@ -2157,10 +2191,8 @@ function generarMosaicoCatalogo() {
         ctx.textBaseline = 'alphabetic';
       }
 
-      // Texto debajo de la foto
       var infoY = fY + fSize + 16;
 
-      // Nombre (2 líneas)
       ctx.fillStyle = '#1a4d80';
       ctx.font = 'bold ' + (cols >= 4 ? 16 : 18) + 'px Arial';
       ctx.textAlign = 'center';
@@ -2177,14 +2209,12 @@ function generarMosaicoCatalogo() {
       ctx.fillText(linea1, cx + tam/2, infoY);
       if (linea2) ctx.fillText(linea2, cx + tam/2, infoY + 22);
 
-      // Precio
       ctx.fillStyle = '#217a44';
       ctx.font = 'bold ' + (cols >= 4 ? 22 : 24) + 'px Arial';
       var precioTxt = p.precio != null ? money(p.precio) : 'Consultar';
       ctx.fillText(precioTxt, cx + tam/2, cy + tam - 26);
     });
 
-    // Footer
     var fy = headerH + filas * tam;
     ctx.fillStyle = '#f4f6fa';
     ctx.fillRect(0, fy, W, footerH);
@@ -2196,14 +2226,15 @@ function generarMosaicoCatalogo() {
       ctx.fillText('📞 ' + neg.telefono, W/2, fy + 42);
     } else if (contacto.tipo === 'link') {
       ctx.fillText('🔗 ' + contacto.valor.substring(0, 50), W/2, fy + 42);
+    } else if (neg.linkCatalogo) {
+      ctx.fillText('🌐 ' + neg.linkCatalogo.substring(0, 50), W/2, fy + 42);
     } else {
       ctx.fillText('📲 Pide por WhatsApp', W/2, fy + 42);
     }
     ctx.font = '16px Arial';
     ctx.fillStyle = '#6b7a90';
-    ctx.fillText('Responde para hacer tu pedido', W/2, fy + 66);
+    ctx.fillText(neg.linkCatalogo ? '🌐 ' + neg.linkCatalogo.substring(0, 60) : 'Responde para hacer tu pedido', W/2, fy + 66);
 
-    // Compartir/descargar
     var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     var file = dataURLtoFile(dataUrl, 'Mosaico.jpg');
     if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
@@ -2222,7 +2253,7 @@ function generarMosaicoCatalogo() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 📱 HISTORIA 1×1 — un producto por imagen, fondo blanco
+// 📱 HISTORIA 1×1
 // ═══════════════════════════════════════════════════════════
 function abrirModalHistoria() {
   var cat = document.getElementById('filtroCategoria').value;
@@ -2245,7 +2276,6 @@ function generarHistorias() {
   var formato = (document.getElementById('historiaFormato') || {}).value || 'tarjetas';
   var neg = getDatosNegocio();
 
-  // 1 producto por historia
   mostrarToast('⏳ Generando ' + lista.length + ' historia(s)...', 'info');
   generarPaginasSecuencial(lista, formato, neg, 0, []);
 }
@@ -2304,11 +2334,9 @@ function descargarHistorias(dataUrls, neg) {
   }, dataUrls.length * 300 + 400);
 }
 
-// Genera una página con UN solo producto — fondo blanco
 function generarHistoriaPagina(producto, formato, neg) {
   return new Promise(function(resolve) {
     var p = producto;
-    // Precargar la imagen
     if (p.foto) {
       var img = new Image();
       img.onload = function() { p._imgEl = img; dibujar(); };
@@ -2325,11 +2353,9 @@ function generarHistoriaPagina(producto, formato, neg) {
       canvas.width = W; canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // Fondo blanco
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
 
-      // Header discreto
       ctx.fillStyle = '#1a4d80';
       ctx.font = 'bold 40px Arial';
       ctx.textAlign = 'center';
@@ -2338,7 +2364,6 @@ function generarHistoriaPagina(producto, formato, neg) {
       ctx.fillStyle = '#6b7a90';
       ctx.fillText('Catálogo · ' + fechaBonita(), W / 2, 108);
 
-      // ── Tarjeta grande (1×1) ─────────────────────────────
       var padX = 60;
       var cardTop = 150;
       var cardBottom = H - 200;
@@ -2349,7 +2374,6 @@ function generarHistoriaPagina(producto, formato, neg) {
 
       dibujarTarjetaGrande(ctx, p, cardX, cardY, cardW, cardH, formato, neg);
 
-      // Footer discreto
       var contacto = analizarContacto(neg.telefono);
       ctx.fillStyle = '#f4f6fa';
       ctx.fillRect(0, H - 150, W, 150);
@@ -2361,6 +2385,8 @@ function generarHistoriaPagina(producto, formato, neg) {
         ctx.fillText('📞 ' + neg.telefono, W / 2, H - 90);
       } else if (contacto.tipo === 'link') {
         ctx.fillText('🔗 ' + contacto.valor.substring(0, 45), W / 2, H - 90);
+      } else if (neg.linkCatalogo) {
+        ctx.fillText('🌐 ' + neg.linkCatalogo.substring(0, 45), W / 2, H - 90);
       } else if (neg.direccion) {
         ctx.fillText('📍 ' + neg.direccion.substring(0, 50), W / 2, H - 90);
       } else {
@@ -2368,18 +2394,16 @@ function generarHistoriaPagina(producto, formato, neg) {
       }
       ctx.font = '20px Arial';
       ctx.fillStyle = '#6b7a90';
-      ctx.fillText('Toca la imagen para más información', W / 2, H - 45);
+      ctx.fillText(neg.linkCatalogo ? '🌐 ' + neg.linkCatalogo.substring(0, 55) : 'Toca la imagen para más información', W / 2, H - 45);
 
       resolve(canvas.toDataURL('image/jpeg', 0.92));
     }
   });
 }
 
-// Dibuja UNA tarjeta grande con foto + nombre + precio + descripción + botones
 function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   var conSombra = formato !== 'limpio';
 
-  // Fondo de la tarjeta
   ctx.save();
   if (conSombra) {
     ctx.shadowColor = 'rgba(0,0,0,.12)';
@@ -2396,7 +2420,6 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   redondearRect(ctx, x, y, w, h, 24);
   ctx.stroke();
 
-  // ── Foto: grande, cuadrada, cover ────────────────────────
   var pad = 24;
   var imgSize = w - pad * 2;
   var imgY = y + pad;
@@ -2411,7 +2434,6 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
       ctx.save();
       redondearRect(ctx, x + pad, imgY, imgSize, imgSize, 16);
       ctx.clip();
-      // COVER: llena todo el cuadro
       var ratio = Math.max(imgSize / img.width, imgSize / img.height);
       var iw = img.width * ratio;
       var ih = img.height * ratio;
@@ -2431,10 +2453,8 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
     ctx.textBaseline = 'alphabetic';
   }
 
-  // ── Textos ───────────────────────────────────────────────
   var infoY = imgY + imgSize + 24;
 
-  // Categoría
   var catTxt = (p.categoria || 'General').toUpperCase();
   ctx.font = 'bold 18px Arial';
   var catW = ctx.measureText(catTxt).width + 24;
@@ -2445,7 +2465,6 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   ctx.textAlign = 'left';
   ctx.fillText(catTxt, x + pad + 12, infoY + 21);
 
-  // Nombre (2 líneas)
   var nombreY = infoY + 50;
   ctx.fillStyle = '#1a4d80';
   ctx.font = 'bold 34px Arial';
@@ -2454,14 +2473,12 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
     ctx.fillText(linea, x + pad, nombreY + 34 + i * 40);
   });
 
-  // Precio
   var precioY = nombreY + 40 + Math.min(lineas.length, 2) * 40 + 10;
   ctx.fillStyle = '#217a44';
   ctx.font = 'bold 40px Arial';
   var precioTxt = (p.precio != null) ? money(p.precio) : 'Precio a consultar';
   ctx.fillText(precioTxt, x + pad, precioY);
 
-  // Descripción breve (2 líneas)
   if (p.descripcion) {
     var descY = precioY + 30;
     ctx.fillStyle = '#6b7a90';
@@ -2472,13 +2489,11 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
     });
   }
 
-  // ── Botones al fondo de la tarjeta ──────────────────────
   var btnH = 64;
   var btnGap = 12;
   var btnY = y + h - btnH - 24;
   var btnW = (imgSize - btnGap) / 2;
 
-  // Solicitar (verde)
   var gradVerde = ctx.createLinearGradient(x + pad, btnY, x + pad + btnW, btnY + btnH);
   gradVerde.addColorStop(0, '#25D366');
   gradVerde.addColorStop(1, '#128C7E');
@@ -2490,7 +2505,6 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   ctx.textAlign = 'center';
   ctx.fillText('💬 Solicitar', x + pad + btnW / 2, btnY + 42);
 
-  // Ver (azul claro)
   var btnVerX = x + pad + btnW + btnGap;
   ctx.fillStyle = '#eaf1f9';
   redondearRect(ctx, btnVerX, btnY, btnW, btnH, 14);
@@ -2500,7 +2514,6 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   ctx.fillText('👁️ Ver', btnVerX + btnW / 2, btnY + 42);
 }
 
-// Helpers canvas
 function redondearRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -2529,7 +2542,7 @@ function partirTexto(ctx, texto, maxWidth) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 📄 CATÁLOGO HTML
+// 📄 CATÁLOGO HTML (con Open Graph)
 // ═══════════════════════════════════════════════════════════
 function abrirModalCatalogo() {
   var cat = document.getElementById('filtroCategoria').value;
@@ -2572,9 +2585,37 @@ function generarCatalogoHTMLString(paraPDF) {
     : layoutSel === '2' ? 'repeat(auto-fit,minmax(280px,1fr))'
     : layoutSel === '3' ? 'repeat(auto-fit,minmax(200px,1fr))'
     : 'repeat(auto-fill,minmax(240px,1fr))';
+
+  var ogTitle = neg.nombre + ' — Catálogo';
+  var ogDesc = 'Catálogo de ' + neg.nombre;
+  if (neg.direccion) ogDesc += ' · ' + neg.direccion;
+  if (contacto.tipo === 'tel') ogDesc += ' · WhatsApp ' + neg.telefono;
+  if (contacto.tipo === 'link') ogDesc += ' · ' + contacto.valor;
+  ogDesc += ' · ' + lista.length + ' productos disponibles';
+
   var html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
   html += '<meta name="viewport" content="width=device-width,initial-scale=1">';
-  html += '<title>' + esc(neg.nombre) + ' — Catálogo</title>';
+  html += '<title>' + esc(ogTitle) + '</title>';
+  html += '<meta name="description" content="' + esc(ogDesc) + '">';
+  html += '<meta property="og:type" content="website">';
+  html += '<meta property="og:site_name" content="' + esc(neg.nombre) + '">';
+  html += '<meta property="og:title" content="' + esc(ogTitle) + '">';
+  html += '<meta property="og:description" content="' + esc(ogDesc) + '">';
+  if (neg.linkCatalogo) {
+    html += '<meta property="og:url" content="' + esc(neg.linkCatalogo) + '">';
+  }
+  if (neg.linkImagen) {
+    html += '<meta property="og:image" content="' + esc(neg.linkImagen) + '">';
+    html += '<meta property="og:image:width" content="1200">';
+    html += '<meta property="og:image:height" content="630">';
+    html += '<meta property="og:image:alt" content="' + esc(neg.nombre + ' — Catálogo') + '">';
+  }
+  html += '<meta name="twitter:card" content="' + (neg.linkImagen ? 'summary_large_image' : 'summary') + '">';
+  html += '<meta name="twitter:title" content="' + esc(ogTitle) + '">';
+  html += '<meta name="twitter:description" content="' + esc(ogDesc) + '">';
+  if (neg.linkImagen) html += '<meta name="twitter:image" content="' + esc(neg.linkImagen) + '">';
+  if (neg.linkCatalogo) html += '<link rel="canonical" href="' + esc(neg.linkCatalogo) + '">';
+
   html += '<style>';
   html += '*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}';
   html += 'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#f4f6fa;color:#222}';
@@ -2619,6 +2660,8 @@ function generarCatalogoHTMLString(paraPDF) {
   html += '.footer a{font-weight:700;text-decoration:none;font-size:14px}';
   html += '.footer .wa{color:#25D366}';
   html += '.footer .lk{color:#2d7ac0}';
+  html += '.footer .btn-compartir-link{display:inline-flex;align-items:center;gap:6px;padding:11px 20px;background:linear-gradient(135deg,#2d7ac0,#1a4d80);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin:8px 0 12px;box-shadow:0 4px 12px rgba(45,122,192,.3)}';
+  html += '.footer .btn-compartir-link:active{transform:scale(.97)}';
   html += '.sin-resultados{grid-column:1/-1;text-align:center;padding:50px 20px;color:#999;font-style:italic;font-size:14px}';
   html += '.sin-resultados .emoji{font-size:48px;display:block;margin-bottom:10px}';
   html += '.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:999;display:none;align-items:flex-start;justify-content:center;padding:14px;overflow-y:auto;backdrop-filter:blur(2px)}';
@@ -2655,7 +2698,7 @@ function generarCatalogoHTMLString(paraPDF) {
   html += '.buscador{font-size:14px;padding:10px 12px}';
   html += '}';
   if (paraPDF) {
-    html += '@media print{.buscador-wrap,.btn-solicitar,.btn-ver,.modal,.modal-close{display:none!important}body{background:#fff}.card{box-shadow:none;border:1px solid #eee;cursor:auto}.grid{grid-template-columns:repeat(3,1fr)}}';
+    html += '@media print{.buscador-wrap,.btn-solicitar,.btn-ver,.modal,.modal-close,.btn-compartir-link{display:none!important}body{background:#fff}.card{box-shadow:none;border:1px solid #eee;cursor:auto}.grid{grid-template-columns:repeat(3,1fr)}}';
   }
   html += '</style></head><body>';
   html += '<div class="header"><h1>🏪 ' + esc(neg.nombre) + '</h1>';
@@ -2722,6 +2765,9 @@ function generarCatalogoHTMLString(paraPDF) {
   });
   html += '</div></div>';
   html += '<div class="footer">';
+  if (neg.linkCatalogo) {
+    html += '<button class="btn-compartir-link" onclick="compartirCatalogoLink()">🔗 Compartir catálogo</button><br>';
+  }
   if (contacto.tipo === 'tel') {
     html += '<p>📲 <a class="wa" href="https://wa.me/' + contacto.telDigitos + '">Pedidos por WhatsApp: ' + esc(neg.telefono) + '</a></p>';
   } else if (contacto.tipo === 'link') {
@@ -2745,7 +2791,8 @@ function generarCatalogoHTMLString(paraPDF) {
     };
   });
   var contactoData = { tipo: contacto.tipo, telDigitos: contacto.telDigitos || '', valor: contacto.valor || '' };
-  var negData = { nombre: neg.nombre };
+  var negData = { nombre: neg.nombre, linkCatalogo: neg.linkCatalogo || '' };
+
   html += '<div class="modal" id="modalDetalle" onclick="if(event.target===this)cerrarDetalle()">';
   html += '<div class="modal-box">';
   html += '<button class="modal-close" onclick="cerrarDetalle()">✕</button>';
@@ -2840,6 +2887,12 @@ function generarCatalogoHTMLString(paraPDF) {
   html += 'document.getElementById("modalDetalle").classList.remove("open");';
   html += 'document.body.style.overflow="";';
   html += '}';
+  html += 'function compartirCatalogoLink(){';
+  html += 'var url=NEGOCIO.linkCatalogo;if(!url)return;';
+  html += 'var texto="🏪 "+NEGOCIO.nombre+"\\n🌐 Mira nuestro catálogo completo:\\n"+url;';
+  html += 'if(navigator.share){navigator.share({title:NEGOCIO.nombre,text:texto,url:url}).catch(function(e){if(e.name!=="AbortError")window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");});}';
+  html += 'else{window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");}';
+  html += '}';
   html += 'document.addEventListener("keydown",function(e){if(e.key==="Escape")cerrarDetalle();});';
   html += '<\/script>';
   html += '</body></html>';
@@ -2874,25 +2927,18 @@ function generarCatalogoHTML() {
 
 function avisarWhatsAppWeb(nombreArch) {
   setTimeout(function () {
-    if (!confirm('📎 Archivo "' + nombreArch + '" descargado.\n\n¿Abrir WhatsApp Web para adjuntarlo manualmente?')) return;
+    var neg = getDatosNegocio();
+    var recordatorio = '';
+    if (neg.linkCatalogo && !neg.linkImagen) {
+      recordatorio = '\n\n⚠️ RECORDATORIO: No has configurado el link de la imagen para redes (Open Graph). Al pegar el link del catálogo en WhatsApp/Facebook no mostrará previsualización.';
+    } else if (neg.linkCatalogo && neg.linkImagen) {
+      recordatorio = '\n\n💡 Recuerda subir el catálogo al link configurado. Si la previsualización no cambia, usa Facebook Sharing Debugger para refrescar el cache.';
+    }
+    var msg = '📎 Archivo "' + nombreArch + '" descargado.' + recordatorio + '\n\n¿Abrir WhatsApp Web para adjuntarlo manualmente?';
+    if (!confirm(msg)) return;
     window.open('https://web.whatsapp.com/', '_blank');
   }, 800);
 }
-
-// ═══════════════════════════════════════════════════════════
-// EVENTOS DE CICLO DE VIDA
-// ═══════════════════════════════════════════════════════════
-document.addEventListener('visibilitychange', function () {
-  if (document.hidden) persistirAhora();
-});
-window.addEventListener('pagehide', function () { persistirAhora(); });
-window.addEventListener('beforeunload', function () { persistirAhora(); });
-window.addEventListener('pageshow', function (e) {
-  if (e.persisted) {
-    cargar().then(function () { mostrarToast('🔄 Datos sincronizados.', 'info'); });
-  }
-});
-window.addEventListener('focus', function () { persistirAhora(); });
 
 // ═══════════════════════════════════════════════════════════
 // CARGA POR LOTE DE TEXTO
