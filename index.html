@@ -124,6 +124,8 @@
   #modalActivacion input { width: 100%; padding: 12px; font-size: 16px; text-align: center; letter-spacing: 3px; font-family: monospace; text-transform: uppercase; border: 2px solid #c8d2e0; border-radius: 8px; margin-bottom: 12px; }
   #modalActivacion button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; margin-bottom: 8px; font-family: inherit; }
   #modalActivacion .btn-activar { background: #2e9e5b; color: #fff; }
+  #modalActivacion .btn-whatsapp { background: linear-gradient(135deg, #25D366, #128C7E); color: #fff; margin-bottom: 6px; font-weight: 800; }
+  #modalActivacion .btn-whatsapp:active { transform: scale(.97); }
   #modalActivacion .btn-cerrar { background: #6b7a90; color: #fff; }
   #modalActivacion .error { color: #c0392b; font-size: 13px; margin-top: 10px; min-height: 18px; font-weight: 600; }
   #modalActivacion .separador { display: flex; align-items: center; gap: 10px; color: #999; font-size: 12px; margin: 14px 0 12px; }
@@ -719,7 +721,7 @@ function mostrarModalActivacion(bloqueante) {
   modal.classList.remove('modo-activado');
   var titulo = bloqueante ? '⏰ Prueba terminada' : '🔓 Activar aplicación';
   var desc = bloqueante
-    ? 'Tu período de prueba de 72 horas ha finalizado. Introduce tu código de activación para continuar.'
+    ? 'Tu período de prueba de 72 horas ha finalizado. Solicita tu código o ingrésalo para continuar.'
     : 'Introduce el código de activación para este dispositivo.';
   var btnCerrarHtml = bloqueante ? '' : '<button class="btn-cerrar" onclick="cerrarModalActivacion()">✖ Cerrar</button>';
 
@@ -727,7 +729,9 @@ function mostrarModalActivacion(bloqueante) {
     '<h2 id="activacionTitulo">' + titulo + '</h2>' +
     '<p id="activacionDescripcion">' + desc + '</p>' +
     '<div class="device-id" id="deviceIdMostrado" onclick="copiarDeviceId()">' + esc(obtenerDeviceId()) + '</div>' +
-    '<p class="ayuda">Toca tu ID para copiarlo y envíalo a tu proveedor.</p>' +
+    '<p class="ayuda">Toca tu ID para copiarlo.</p>' +
+    '<button class="btn-whatsapp" onclick="solicitarCodigoActivacion()">📲 Solicitar código por WhatsApp</button>' +
+    '<div class="separador">o ingresa el código recibido</div>' +
     '<input type="text" id="inputCodigo" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" oninput="formatearCodigo(this)" onkeydown="if(event.key===\'Enter\') activar()">' +
     '<button class="btn-activar" onclick="activar()">✅ Activar</button>' +
     '<div class="error" id="errorActivacion"></div>' +
@@ -759,6 +763,20 @@ function copiarDeviceId() {
   setTimeout(function () { el.textContent = orig; }, 1200);
   mostrarToast('📋 ID copiado.', 'info');
 }
+function solicitarCodigoActivacion() {
+  var negocio = negocioActivo();
+  var nombre = negocio ? negocio.nombre : "(sin configurar)";
+  var deviceId = obtenerDeviceId();
+  var msg = "🔓 *Solicitud de código de activación*\n\n";
+  msg += "🏪 Negocio: " + nombre + "\n";
+  msg += "🆔 ID del dispositivo: " + deviceId + "\n";
+  msg += "📅 Fecha: " + new Date().toLocaleString("es-ES") + "\n\n";
+  msg += "Por favor envíenme el código de activación para este dispositivo.\n\n¡Gracias!";
+  var url = "https://wa.me/" + WHATSAPP_ADMIN + "?text=" + encodeURIComponent(msg);
+  window.open(url, "_blank");
+  mostrarToast("📲 Abriendo WhatsApp...", "info");
+}
+
 function activar() {
   var deviceId = obtenerDeviceId();
   var input = document.getElementById('inputCodigo');
