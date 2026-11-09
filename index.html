@@ -160,6 +160,40 @@
     .barra-global { border-radius: 12px 12px 0 0; }
     header { border-radius: 0 0 12px 12px; }
   }
+
+  /* ═══ Parche v3: barras colapsables ═══ */
+  .toolbar-extra {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex-basis: 100%;
+    width: 100%;
+    padding-top: 10px;
+    margin-top: 4px;
+    border-top: 1px dashed #eaf1f9;
+  }
+  .toolbar-extra[hidden] { display: none; }
+  .toolbar-extra .btn { flex: 1 1 auto; }
+  .barra-global-extras {
+    flex-basis: 100%;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .barra-global-extras[hidden] { display: none; }
+  .barra-global-extras button { flex: 1 1 30% !important; }
+  .barra-global .btn-mas {
+    background: linear-gradient(135deg, #6b7a90, #4a5568);
+    color: #fff;
+  }
+  .barra-global .btn-mas.abierto {
+    background: linear-gradient(135deg, #c0392b, #96291d);
+  }
+  @media (max-width: 380px) {
+    .barra-global-extras button { font-size: 11px; padding: 10px 4px; }
+    .toolbar-extra .btn { font-size: 12px; padding: 8px 10px; }
+  }
 </style>
 </head>
 <body>
@@ -170,9 +204,7 @@
     <select id="selectorNegocio" onchange="cambiarNegocio(this.value)"></select>
     <button class="btn-hdr" onclick="abrirModalNuevoNegocio()" title="Nuevo negocio">➕</button>
     <button class="btn-hdr danger" onclick="borrarNegocioActivo()" title="Borrar negocio activo">🗑️</button>
-    <button class="btn-hdr" onclick="exportarRespaldoNegocio()" title="Respaldar negocio (JSON/CSV)">💾</button>
-    <button class="btn-hdr" onclick="importarRespaldoNegocio()" title="Cargar respaldo">📂</button>
-    <button class="btn-hdr" onclick="mostrarModalActivacion()" title="Estado de activación">🔓</button>
+    <button class="btn-hdr" onclick="abrirMenuGestion()" title="Guardar, cargar y activar">💾</button>
   </div>
   <button class="btn-toggle" id="btnToggleHeader" onclick="toggleHeader()">
     <span class="arrow">▼</span> <span id="txtToggle">Ver dirección y contacto</span>
@@ -199,10 +231,13 @@
     <option value="">Todas las categorías</option>
   </select>
   <button class="btn btn-azul" onclick="alternarAgregar()">➕ <span id="txtAgregar">Producto</span></button>
-  <button class="btn btn-morado" onclick="abrirCargaFotosLotes()" title="Cargar varias fotos">📷 Lote</button>
-  <button class="btn btn-naranja" onclick="importarHTMLCatalogo()" title="Importar catálogo HTML">📥 HTML</button>
-  <button class="btn btn-morado" onclick="abrirCargaTexto()" title="Cargar productos por lote desde texto">📝 Lote texto</button>
+  <button class="btn btn-morado" id="btnToggleImportar" onclick="toggleImportar()" title="Mostrar opciones de importar">📥 <span id="txtToggleImportar">Importar</span></button>
   <button class="btn btn-rojo" onclick="limpiarTodoCatalogo()">🗑️</button>
+  <div class="toolbar-extra" id="toolbarExtra" hidden>
+    <button class="btn btn-morado" onclick="abrirCargaFotosLotes()" title="Cargar varias fotos">📷 Lote fotos</button>
+    <button class="btn btn-naranja" onclick="importarHTMLCatalogo()" title="Importar catálogo HTML">📥 HTML</button>
+    <button class="btn btn-morado" onclick="abrirCargaTexto()" title="Cargar productos por lote desde texto">📝 Lote texto</button>
+  </div>
 </div>
 
 <div class="agregar-card" id="agregarCard" style="display:none">
@@ -257,9 +292,12 @@
 <div class="barra-global">
   <button class="btn-catalogo" onclick="abrirModalCatalogo()">📄 Catálogo HTML</button>
   <button class="btn-texto" onclick="enviarCatalogoTexto()">📝 Catálogo texto</button>
-  <button class="btn-mosaico" onclick="abrirModalMosaico()">🖼️ Mosaico</button>
-  <button class="btn-historia" onclick="abrirModalHistoria()">📱 Historia 1×1 (WhatsApp/Facebook)</button>
-  <button class="btn-online" onclick="abrirCatalogoOnline()">🌐 Ver catálogo online</button>
+  <button class="btn-mas" id="btnToggleCompartir" onclick="toggleCompartirMas()">➕ <span id="txtToggleCompartir">Más</span></button>
+  <div class="barra-global-extras" id="barraGlobalExtra" hidden>
+    <button class="btn-mosaico" onclick="abrirModalMosaico()">🖼️ Mosaico</button>
+    <button class="btn-historia" onclick="abrirModalHistoria()">📱 Historia 1×1</button>
+    <button class="btn-online" onclick="abrirCatalogoOnline()">🌐 Ver catálogo</button>
+  </div>
 </div>
 
 <div id="modalCatalogo" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalCatalogo()">
@@ -3053,6 +3091,62 @@ function procesarLoteTexto() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// Parche v3: barras colapsables y menú unificado
+// ═══════════════════════════════════════════════════════════
+function toggleImportar() {
+  var extras = document.getElementById("toolbarExtra");
+  var txt = document.getElementById("txtToggleImportar");
+  if (!extras) return;
+  var abierto = !extras.hasAttribute("hidden");
+  if (abierto) {
+    extras.setAttribute("hidden", "");
+    if (txt) txt.textContent = "Importar";
+  } else {
+    extras.removeAttribute("hidden");
+    if (txt) txt.textContent = "Cerrar";
+  }
+}
+
+function toggleCompartirMas() {
+  var extras = document.getElementById("barraGlobalExtra");
+  var btn = document.getElementById("btnToggleCompartir");
+  var txt = document.getElementById("txtToggleCompartir");
+  if (!extras) return;
+  var abierto = !extras.hasAttribute("hidden");
+  if (abierto) {
+    extras.setAttribute("hidden", "");
+    if (btn) btn.classList.remove("abierto");
+    if (txt) txt.textContent = "Más";
+  } else {
+    extras.removeAttribute("hidden");
+    if (btn) btn.classList.add("abierto");
+    if (txt) txt.textContent = "Menos";
+  }
+  setTimeout(ajustarPaddingInferior, 20);
+}
+
+function abrirMenuGestion() {
+  mostrarMenuOpciones(
+    "💾 Gestión del negocio",
+    "Elige qué quieres hacer:",
+    [
+      { texto: "💾 Guardar respaldo", accion: exportarRespaldoNegocio, clase: "btn-verde" },
+      { texto: "📂 Cargar respaldo", accion: importarRespaldoNegocio, clase: "btn-azul" },
+      { texto: "🔓 Estado de activación", accion: function () { mostrarModalActivacion(); }, clase: "btn-morado" }
+    ]
+  );
+}
+
+function ajustarPaddingInferior() {
+  var bar = document.querySelector(".barra-global");
+  if (!bar) return;
+  document.body.style.paddingBottom = (bar.offsetHeight + 24) + "px";
+}
+
+setTimeout(ajustarPaddingInferior, 200);
+window.addEventListener("resize", ajustarPaddingInferior);
+
 (function init() {
   if (!obtenerTrial()) iniciarTrial();
   cargar().then(function () {
