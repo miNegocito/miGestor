@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gestor de Ventas 1.13 — Catálogo online</title>
+<title>Gestor de Ventas 1.13.10 — Catálogo online</title>
 <meta name="theme-color" content="#1a4d80">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -337,7 +337,7 @@
 <div id="modalHistoria" class="modal-overlay" style="display:none" onclick="if(event.target===this)cerrarModalHistoria()">
   <div class="modal-caja">
     <h3>📱 Historia 1×1</h3>
-    <p>Se generará una imagen vertical (1080×1920) con <b>un producto por historia</b>, sobre fondo blanco, con imagen ajustada, nombre, precio, descripción breve y botones <b>Solicitar</b> y <b>Ver</b>. Ideal para WhatsApp, Facebook e Instagram Stories.</p>
+    <p>Se generará una imagen vertical (1080×1920) con <b>2 productos por historia</b> en tarjetas escalonadas, sobre fondo blanco, con imagen, nombre, precio y descripción breve. Ideal para WhatsApp, Facebook e Instagram Stories.</p>
     <label>Estilo de tarjeta</label>
     <select id="historiaFormato">
       <option value="tarjetas" selected>🃏 Con sombra (destacadas)</option>
@@ -1091,8 +1091,7 @@ function blobToDataURL(blob) {
 // ESTADO + PERSISTENCIA
 // ═══════════════════════════════════════════════════════════
 var productos = [];
-var _guardando = false;
-var _guardarPendiente = false;
+var _guardadoPromise = Promise.resolve();
 
 function persistirAhora() {
   var n = negocioActivo();
@@ -1113,29 +1112,22 @@ function persistirAhora() {
 
   var negocioId = n.id;
   var idsValidos = productos.map(function (p) { return p.id; });
+  var productosCopia = productos.slice();
 
-  if (_guardando) {
-    _guardarPendiente = true;
-    return Promise.resolve(true);
-  }
-  _guardando = true;
+  _guardadoPromise = _guardadoPromise.then(function () {
+    return idbGuardarProductos(negocioId, productosCopia)
+      .then(function () { return idbLimpiarFotosHuerfanas(negocioId, idsValidos); })
+      .then(function () {
+        return true;
+      })
+      .catch(function (err) {
+        console.error('Error guardando:', err);
+        mostrarToast('⚠️ Error al guardar: ' + (err && err.message ? err.message : 'desconocido'), 'error');
+        return false;
+      });
+  });
 
-  return idbGuardarProductos(negocioId, productos)
-    .then(function () { return idbLimpiarFotosHuerfanas(negocioId, idsValidos); })
-    .then(function () {
-      _guardando = false;
-      if (_guardarPendiente) {
-        _guardarPendiente = false;
-        return persistirAhora();
-      }
-      return true;
-    })
-    .catch(function (err) {
-      _guardando = false;
-      console.error('Error guardando:', err);
-      mostrarToast('⚠️ Error al guardar: ' + (err && err.message ? err.message : 'desconocido'), 'error');
-      return false;
-    });
+  return _guardadoPromise;
 }
 function guardarAhora() { return persistirAhora(); }
 function guardar() { return persistirAhora(); }
@@ -1175,15 +1167,21 @@ function actualizarTitulo() {
   document.getElementById('tituloNegocio').textContent = n;
 }
 
+// ✅ FIX 1: guardarHeader ya NO sobreescribe los links si los inputs no existen
 function guardarHeader() {
   var r = obtenerRegistro();
   var n = negocioActivo();
   if (!n) return;
-  n.nombre = document.getElementById('negNombre').value.trim() || 'Mi Negocio';
-  n.direccion = document.getElementById('negDireccion').value.trim();
-  n.telefono = document.getElementById('negTelefono').value.trim();
-  n.linkCatalogo = document.getElementById('negLinkCatalogo').value.trim();
-  n.linkImagen = document.getElementById('negLinkImagen').value.trim();
+  var nomEl = document.getElementById('negNombre');
+  var dirEl = document.getElementById('negDireccion');
+  var telEl = document.getElementById('negTelefono');
+  var linkCatEl = document.getElementById('negLinkCatalogo');
+  var linkImgEl = document.getElementById('negLinkImagen');
+  if (nomEl) n.nombre = nomEl.value.trim() || 'Mi Negocio';
+  if (dirEl) n.direccion = dirEl.value.trim();
+  if (telEl) n.telefono = telEl.value.trim();
+  if (linkCatEl) n.linkCatalogo = linkCatEl.value.trim();
+  if (linkImgEl) n.linkImagen = linkImgEl.value.trim();
   guardarRegistro(r);
   renderSelectorNegocios();
   actualizarTitulo();
@@ -1211,9 +1209,11 @@ function cambiarNegocio(id) {
   var r = obtenerRegistro();
   var n = r.lista.find(function (x) { return x.id === id; });
   if (!n || r.activo === id) return;
+  
   persistirAhora().then(function () {
-    r.activo = id;
-    guardarRegistro(r);
+    var rActualizado = obtenerRegistro(); 
+    rActualizado.activo = id;
+    guardarRegistro(rActualizado);
     return cargarProductosDelNegocioActivo();
   }).then(function () {
     cargarHeaderDelNegocioActivo();
@@ -1957,7 +1957,7 @@ function cerrarMenuOpciones() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ENVIAR PRODUCTO / CATÁLOGO TEXTO (breve)
+// ENVIAR PRODUCTO / CATÁLOGO TEXTO
 // ═══════════════════════════════════════════════════════════
 function getDatosNegocio() {
   return {
@@ -1991,31 +1991,52 @@ function generarTextoProducto(p) {
   t += '\n_Responde para hacer tu pedido_ 💙';
   return t;
 }
+
+// ✅ FIX 2: copia el texto al portapapeles SIEMPRE antes de compartir,
+// porque Facebook/grupos descartan el texto y solo toman la foto.
 function enviarProductoWhatsApp(id) {
   var p = productos.find(function (x) { return x.id === id; });
   if (!p) return;
   if (p.agotado && !confirm('Este producto está marcado como agotado. ¿Enviarlo de todas formas?')) return;
   var texto = generarTextoProducto(p);
-  if (!p.foto) { compartirTextoWhatsApp(texto, p.nombre); return; }
+
+  // Copiamos el texto al portapapeles siempre: en Facebook/grupos
+  // el share solo lleva la foto y el texto se pierde.
+  copiarTexto(texto);
+
+  if (!p.foto) {
+    compartirTextoWhatsApp(texto, p.nombre);
+    return;
+  }
+
   if (navigator.share && navigator.canShare) {
     try {
       var file = dataURLtoFile(p.foto, 'producto.jpg');
       if (navigator.canShare({ files: [file] })) {
         navigator.share({ files: [file], title: p.nombre, text: texto })
-          .then(function () { mostrarToast('✅ Compartido.'); })
+          .then(function () {
+            mostrarToast('✅ Foto compartida. El texto ya está copiado: pégalo en el post.', 'info');
+          })
           .catch(function (err) {
             if (err && err.name === 'AbortError') return;
-            compartirTextoWhatsApp(texto, p.nombre);
+            descargarFoto(p.foto, p.nombre);
+            mostrarToast('📋 Texto copiado y foto descargada. Pégalo en tu publicación.', 'info');
+            setTimeout(function () {
+              window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+            }, 400);
           });
         return;
       }
     } catch (err) { if (err && err.name === 'AbortError') return; }
   }
-  copiarTexto(texto);
+
   descargarFoto(p.foto, p.nombre);
-  mostrarToast('📋 Texto copiado y foto descargada.', 'info');
-  setTimeout(function () { window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank'); }, 400);
+  mostrarToast('📋 Texto copiado y foto descargada. Pégalo en tu publicación.', 'info');
+  setTimeout(function () {
+    window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+  }, 400);
 }
+
 function compartirTextoWhatsApp(texto, titulo) {
   if (navigator.share) {
     navigator.share({ title: titulo || 'Producto', text: texto })
@@ -2309,7 +2330,7 @@ function generarMosaicoCatalogo() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 📱 HISTORIA 1×1
+// 📱 HISTORIA 1×1 — DOS TARJETAS POR IMAGEN (estilo foto)
 // ═══════════════════════════════════════════════════════════
 function abrirModalHistoria() {
   var cat = document.getElementById('filtroCategoria').value;
@@ -2322,6 +2343,7 @@ function cerrarModalHistoria() {
   document.getElementById('modalHistoria').style.display = 'none';
 }
 
+// ✅ FIX 3: genera historias con 2 productos por imagen en tarjetas escalonadas
 function generarHistorias() {
   var cat = document.getElementById('filtroCategoria').value;
   var lista = productos.filter(function (p) { return !p.agotado; });
@@ -2332,22 +2354,28 @@ function generarHistorias() {
   var formato = (document.getElementById('historiaFormato') || {}).value || 'tarjetas';
   var neg = getDatosNegocio();
 
-  mostrarToast('⏳ Generando ' + lista.length + ' historia(s)...', 'info');
-  generarPaginasSecuencial(lista, formato, neg, 0, []);
+  // Agrupar de 2 en 2: cada historia lleva 2 tarjetas
+  var paginas = [];
+  for (var i = 0; i < lista.length; i += 2) {
+    paginas.push(lista.slice(i, i + 2));
+  }
+
+  mostrarToast('⏳ Generando ' + paginas.length + ' historia(s)...', 'info');
+  generarPaginasSecuencial(paginas, formato, neg, 0, []);
 }
 
-function generarPaginasSecuencial(lista, formato, neg, idx, resultados) {
-  if (idx >= lista.length) {
+function generarPaginasSecuencial(paginas, formato, neg, idx, resultados) {
+  if (idx >= paginas.length) {
     finalizarHistorias(resultados, neg);
     return;
   }
-  generarHistoriaPagina(lista[idx], formato, neg).then(function(dataUrl) {
+  generarHistoriaPagina(paginas[idx], formato, neg).then(function (dataUrl) {
     resultados.push(dataUrl);
-    generarPaginasSecuencial(lista, formato, neg, idx + 1, resultados);
-  }).catch(function(err) {
+    generarPaginasSecuencial(paginas, formato, neg, idx + 1, resultados);
+  }).catch(function (err) {
     console.error(err);
     mostrarToast('⚠️ Error generando una página.', 'error');
-    generarPaginasSecuencial(lista, formato, neg, idx + 1, resultados);
+    generarPaginasSecuencial(paginas, formato, neg, idx + 1, resultados);
   });
 }
 
@@ -2355,8 +2383,8 @@ function finalizarHistorias(dataUrls, neg) {
   if (!dataUrls.length) { mostrarToast('No se generó ninguna imagen.', 'warn'); return; }
   mostrarToast('✅ ' + dataUrls.length + ' historia(s) lista(s).', 'info');
 
-  var files = dataUrls.map(function(dataUrl, i) {
-    return dataURLtoFile(dataUrl, 'Historia_' + (i+1) + '.jpg');
+  var files = dataUrls.map(function (dataUrl, i) {
+    return dataURLtoFile(dataUrl, 'Historia_' + (i + 1) + '.jpg');
   });
 
   if (navigator.share && navigator.canShare && navigator.canShare({ files: files })) {
@@ -2364,9 +2392,9 @@ function finalizarHistorias(dataUrls, neg) {
       files: files,
       title: 'Catálogo - ' + neg.nombre,
       text: '🏪 ' + neg.nombre + ' — Catálogo'
-    }).then(function() {
+    }).then(function () {
       mostrarToast('✅ Historias compartidas.', 'info');
-    }).catch(function(err) {
+    }).catch(function (err) {
       if (err && err.name === 'AbortError') return;
       descargarHistorias(dataUrls, neg);
     });
@@ -2378,30 +2406,34 @@ function finalizarHistorias(dataUrls, neg) {
 
 function descargarHistorias(dataUrls, neg) {
   mostrarToast('📥 Descargando ' + dataUrls.length + ' imagen(es)...', 'info');
-  dataUrls.forEach(function(dataUrl, i) {
-    setTimeout(function() {
-      descargarFoto(dataUrl, 'Historia_' + (i+1) + '_' + neg.nombre);
+  dataUrls.forEach(function (dataUrl, i) {
+    setTimeout(function () {
+      descargarFoto(dataUrl, 'Historia_' + (i + 1) + '_' + neg.nombre);
     }, i * 250);
   });
-  setTimeout(function() {
+  setTimeout(function () {
     if (confirm('✅ Historias descargadas.\n\n¿Abrir WhatsApp para publicarlas en tu estado?')) {
       window.open('https://web.whatsapp.com/', '_blank');
     }
   }, dataUrls.length * 300 + 400);
 }
 
-function generarHistoriaPagina(producto, formato, neg) {
-  return new Promise(function(resolve) {
-    var p = producto;
-    if (p.foto) {
-      var img = new Image();
-      img.onload = function() { p._imgEl = img; dibujar(); };
-      img.onerror = function() { p._imgEl = null; dibujar(); };
-      img.src = p.foto;
-    } else {
-      p._imgEl = null;
-      dibujar();
-    }
+// Carga las imágenes de los productos de una página y dibuja
+function generarHistoriaPagina(productosPagina, formato, neg) {
+  return new Promise(function (resolve) {
+    var pendientes = 0;
+    productosPagina.forEach(function (p) {
+      if (p.foto) {
+        pendientes++;
+        var img = new Image();
+        img.onload = function () { p._imgEl = img; if (--pendientes === 0) dibujar(); };
+        img.onerror = function () { p._imgEl = null; if (--pendientes === 0) dibujar(); };
+        img.src = p.foto;
+      } else {
+        p._imgEl = null;
+      }
+    });
+    if (pendientes === 0) dibujar();
 
     function dibujar() {
       var W = 1080, H = 1920;
@@ -2409,62 +2441,111 @@ function generarHistoriaPagina(producto, formato, neg) {
       canvas.width = W; canvas.height = H;
       var ctx = canvas.getContext('2d');
 
+      // Fondo blanco
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, W, H);
 
-      ctx.fillStyle = '#1a4d80';
-      ctx.font = 'bold 40px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('🏪 ' + neg.nombre.substring(0, 26), W / 2, 70);
-      ctx.font = '22px Arial';
-      ctx.fillStyle = '#6b7a90';
-      ctx.fillText('Catálogo · ' + fechaBonita(), W / 2, 108);
-
-      var padX = 60;
-      var cardTop = 150;
-      var cardBottom = H - 200;
-      var cardX = padX;
-      var cardY = cardTop;
-      var cardW = W - padX * 2;
-      var cardH = cardBottom - cardTop;
-
-      dibujarTarjetaGrande(ctx, p, cardX, cardY, cardW, cardH, formato, neg);
-
-      var contacto = analizarContacto(neg.telefono);
-      ctx.fillStyle = '#f4f6fa';
-      ctx.fillRect(0, H - 150, W, 150);
-
-      ctx.fillStyle = '#1a4d80';
-      ctx.font = 'bold 30px Arial';
-      ctx.textAlign = 'center';
-      if (contacto.tipo === 'tel') {
-        ctx.fillText('📞 ' + neg.telefono, W / 2, H - 90);
-      } else if (contacto.tipo === 'link') {
-        ctx.fillText('🔗 ' + contacto.valor.substring(0, 45), W / 2, H - 90);
-      } else if (neg.linkCatalogo) {
-        ctx.fillText('🌐 ' + neg.linkCatalogo.substring(0, 45), W / 2, H - 90);
-      } else if (neg.direccion) {
-        ctx.fillText('📍 ' + neg.direccion.substring(0, 50), W / 2, H - 90);
-      } else {
-        ctx.fillText('Responde para hacer tu pedido', W / 2, H - 90);
-      }
-      ctx.font = '20px Arial';
-      ctx.fillStyle = '#6b7a90';
-      ctx.fillText(neg.linkCatalogo ? '🌐 ' + neg.linkCatalogo.substring(0, 55) : 'Toca la imagen para más información', W / 2, H - 45);
+      // Dibujamos todo el bloque (encabezado + tarjetas + pie) de forma compacta
+      dibujarHistoriaDosTarjetas(ctx, W, H, productosPagina, formato, neg);
 
       resolve(canvas.toDataURL('image/jpeg', 0.92));
     }
   });
 }
 
-function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
+// Layout de 2 tarjetas con encabezado y pie pegados
+function dibujarHistoriaDosTarjetas(ctx, W, H, productosPagina, formato, neg) {
   var conSombra = formato !== 'limpio';
+  var margenLados = 40;
+  var gap = 30; // Espacio entre las dos tarjetas
+  var cardW = (W - margenLados * 2 - gap) / 2;
 
+  // Calcular la altura de cada tarjeta
+  var h1 = productosPagina[0] ? medirTarjeta(ctx, productosPagina[0], cardW) : 0;
+  var h2 = productosPagina[1] ? medirTarjeta(ctx, productosPagina[1], cardW) : 0;
+  var maxH = Math.max(h1, h2, 500);
+
+  // Calcular la altura total del bloque (Encabezado + Tarjetas + Pie)
+  var headerH = 100; // Altura del encabezado
+  var footerH = 120; // Altura del pie
+  var gapVertical = 30; // Separación entre encabezado-tarjetas y tarjetas-pie
+  var totalBlockH = headerH + gapVertical + maxH + gapVertical + footerH;
+
+  // Centrar el bloque completo verticalmente en el lienzo de 1920
+  var blockStartY = Math.max(40, (H - totalBlockH) / 2);
+  
+  var headerY = blockStartY;
+  var cardsY = headerY + headerH + gapVertical;
+  var footerY = cardsY + maxH + gapVertical;
+
+  // --- DIBUJAR ENCABEZADO ---
+  ctx.fillStyle = '#1a4d80';
+  ctx.font = 'bold 42px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('🏪 ' + neg.nombre.substring(0, 26), W / 2, headerY + 40);
+  ctx.font = '24px Arial';
+  ctx.fillStyle = '#6b7a90';
+  ctx.fillText('Catálogo · ' + fechaBonita(), W / 2, headerY + 80);
+
+  // --- DIBUJAR TARJETAS ---
+  var t1x = margenLados;
+  var t2x = margenLados + cardW + gap;
+  if (productosPagina[0]) {
+    dibujarTarjetaVertical(ctx, productosPagina[0], t1x, cardsY, cardW, maxH, conSombra);
+  }
+  if (productosPagina[1]) {
+    dibujarTarjetaVertical(ctx, productosPagina[1], t2x, cardsY, cardW, maxH, conSombra);
+  }
+
+  // --- DIBUJAR PIE ---
+  ctx.fillStyle = '#f4f6fa';
+  ctx.fillRect(0, footerY, W, footerH);
+  var contacto = analizarContacto(neg.telefono);
+  ctx.fillStyle = '#1a4d80';
+  ctx.font = 'bold 30px Arial';
+  ctx.textAlign = 'center';
+  if (contacto.tipo === 'tel') {
+    ctx.fillText('📞 ' + neg.telefono, W / 2, footerY + 50);
+  } else if (contacto.tipo === 'link') {
+    ctx.fillText('🔗 ' + contacto.valor.substring(0, 45), W / 2, footerY + 50);
+  } else if (neg.linkCatalogo) {
+    ctx.fillText('🌐 ' + neg.linkCatalogo.substring(0, 45), W / 2, footerY + 50);
+  } else {
+    ctx.fillText('Responde para hacer tu pedido', W / 2, footerY + 50);
+  }
+  ctx.font = '20px Arial';
+  ctx.fillStyle = '#6b7a90';
+  ctx.fillText(neg.linkCatalogo ? '🌐 ' + neg.linkCatalogo.substring(0, 55) : 'Toca la imagen para más información', W / 2, footerY + 85);
+}
+
+// Calcula cuánto medirá la tarjeta de alto según sus textos
+function medirTarjeta(ctx, p, w) {
+  var pad = 16;
+  var imgW = w - pad * 2;
+  var imgH = imgW * 1.1;
+  
+  var catH = 22;
+  ctx.font = 'bold 20px Arial';
+  var lineas = partirTexto(ctx, p.nombre || 'Producto', imgW);
+  var nameH = Math.min(lineas.length, 2) * 24;
+  
+  var priceH = 28;
+  var linkH = p.enlace ? 22 : 0;
+  var btnH = 40;
+  
+  var total = pad + imgH + pad + catH + pad + nameH + pad + priceH + pad + btnH + pad;
+  if (p.enlace) total += linkH + pad;
+  
+  return total;
+}
+
+// Dibuja la tarjeta con la foto, los textos y los botones bien juntos
+function dibujarTarjetaVertical(ctx, p, x, y, w, h, conSombra) {
   ctx.save();
   if (conSombra) {
-    ctx.shadowColor = 'rgba(0,0,0,.12)';
+    ctx.shadowColor = 'rgba(0,0,0,.15)';
     ctx.shadowBlur = 20;
-    ctx.shadowOffsetY = 6;
+    ctx.shadowOffsetY = 8;
   }
   ctx.fillStyle = '#ffffff';
   redondearRect(ctx, x, y, w, h, 24);
@@ -2476,100 +2557,111 @@ function dibujarTarjetaGrande(ctx, p, x, y, w, h, formato, neg) {
   redondearRect(ctx, x, y, w, h, 24);
   ctx.stroke();
 
-  var pad = 24;
-  var imgSize = w - pad * 2;
+  var pad = 16;
+  
+  // --- FOTO ---
   var imgY = y + pad;
+  var imgW = w - pad * 2;
+  var imgH = imgW * 1.1;
 
   ctx.fillStyle = '#f8faff';
-  redondearRect(ctx, x + pad, imgY, imgSize, imgSize, 16);
+  redondearRect(ctx, x + pad, imgY, imgW, imgH, 16);
   ctx.fill();
 
   if (p._imgEl && p._imgEl.width && p._imgEl.height) {
     try {
       var img = p._imgEl;
       ctx.save();
-      redondearRect(ctx, x + pad, imgY, imgSize, imgSize, 16);
+      redondearRect(ctx, x + pad, imgY, imgW, imgH, 16);
       ctx.clip();
-      var ratio = Math.max(imgSize / img.width, imgSize / img.height);
+      var ratio = Math.max(imgW / img.width, imgH / img.height);
       var iw = img.width * ratio;
       var ih = img.height * ratio;
-      var ix = x + pad + (imgSize - iw) / 2;
-      var iy = imgY + (imgSize - ih) / 2;
+      var ix = x + pad + (imgW - iw) / 2;
+      var iy = imgY + (imgH - ih) / 2;
       ctx.fillStyle = '#fff';
-      ctx.fillRect(x + pad, imgY, imgSize, imgSize);
+      ctx.fillRect(x + pad, imgY, imgW, imgH);
       ctx.drawImage(img, ix, iy, iw, ih);
       ctx.restore();
-    } catch (e) { console.warn(e); }
+    } catch (e) {}
   } else {
     ctx.fillStyle = '#c8d2e0';
-    ctx.font = '160px Arial';
+    ctx.font = '80px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('📷', x + pad + imgSize / 2, imgY + imgSize / 2);
+    ctx.fillText('📷', x + pad + imgW / 2, imgY + imgH / 2);
     ctx.textBaseline = 'alphabetic';
   }
 
-  var infoY = imgY + imgSize + 24;
-
+  // --- TEXTOS ---
+  var infoY = imgY + imgH + pad;
+  
+  // Categoría
   var catTxt = (p.categoria || 'General').toUpperCase();
-  ctx.font = 'bold 18px Arial';
-  var catW = ctx.measureText(catTxt).width + 24;
+  ctx.font = 'bold 14px Arial';
+  var catW = ctx.measureText(catTxt).width + 16;
   ctx.fillStyle = '#eaf1f9';
-  redondearRect(ctx, x + pad, infoY, catW, 30, 15);
+  redondearRect(ctx, x + pad, infoY, catW, 22, 11);
   ctx.fill();
   ctx.fillStyle = '#2d7ac0';
   ctx.textAlign = 'left';
-  ctx.fillText(catTxt, x + pad + 12, infoY + 21);
+  ctx.fillText(catTxt, x + pad + 8, infoY + 15);
 
-  var nombreY = infoY + 50;
+  // Nombre
   ctx.fillStyle = '#1a4d80';
-  ctx.font = 'bold 34px Arial';
-  var lineas = partirTexto(ctx, p.nombre || 'Producto', imgSize);
-  lineas.slice(0, 2).forEach(function(linea, i) {
-    ctx.fillText(linea, x + pad, nombreY + 34 + i * 40);
+  ctx.font = 'bold 20px Arial';
+  var nombreY = infoY + 22 + pad;
+  var lineas = partirTexto(ctx, p.nombre || 'Producto', imgW);
+  lineas.slice(0, 2).forEach(function (linea, i) {
+    ctx.fillText(linea, x + pad, nombreY + (i * 24) + 18); 
   });
 
-  var precioY = nombreY + 40 + Math.min(lineas.length, 2) * 40 + 10;
+  // Precio
+  var precioY = nombreY + Math.min(lineas.length, 2) * 24 + pad;
   ctx.fillStyle = '#217a44';
-  ctx.font = 'bold 40px Arial';
-  var precioTxt = (p.precio != null) ? money(p.precio) : 'Precio a consultar';
-  ctx.fillText(precioTxt, x + pad, precioY);
+  ctx.font = 'bold 24px Arial';
+  var precioTxt = (p.precio != null) ? money(p.precio) : 'Consultar';
+  ctx.fillText(precioTxt, x + pad, precioY + 24);
 
-  if (p.descripcion) {
-    var descY = precioY + 30;
-    ctx.fillStyle = '#6b7a90';
-    ctx.font = '22px Arial';
-    var descLineas = partirTexto(ctx, p.descripcion, imgSize);
-    descLineas.slice(0, 2).forEach(function(linea, i) {
-      ctx.fillText(linea, x + pad, descY + 26 + i * 28);
-    });
+  // Enlace
+  var linkY = precioY + 28 + pad;
+  if (p.enlace) {
+    ctx.fillStyle = '#eaf1f9';
+    ctx.font = '12px Arial';
+    redondearRect(ctx, x + pad, linkY, 75, 22, 11);
+    ctx.fill();
+    ctx.fillStyle = '#2d7ac0';
+    ctx.fillText('🔗 Con enlace', x + pad + 6, linkY + 15);
   }
 
-  var btnH = 64;
-  var btnGap = 12;
-  var btnY = y + h - btnH - 24;
-  var btnW = (imgSize - btnGap) / 2;
-
+  // --- BOTONES ---
+  var btnH = 40;
+  var btnY = y + h - pad - btnH;
+  var btnW = (w - pad * 3) / 2;
+  
+  // Botón WhatsApp
   var gradVerde = ctx.createLinearGradient(x + pad, btnY, x + pad + btnW, btnY + btnH);
   gradVerde.addColorStop(0, '#25D366');
   gradVerde.addColorStop(1, '#128C7E');
   ctx.fillStyle = gradVerde;
-  redondearRect(ctx, x + pad, btnY, btnW, btnH, 14);
+  redondearRect(ctx, x + pad, btnY, btnW, btnH, 8);
   ctx.fill();
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 26px Arial';
+  ctx.font = 'bold 16px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('💬 Solicitar', x + pad + btnW / 2, btnY + 42);
+  ctx.fillText('💬', x + pad + btnW / 2, btnY + 26);
 
-  var btnVerX = x + pad + btnW + btnGap;
-  ctx.fillStyle = '#eaf1f9';
-  redondearRect(ctx, btnVerX, btnY, btnW, btnH, 14);
+  // Botón Carrito
+  var btn2X = x + pad + btnW + pad;
+  ctx.fillStyle = '#f0e9f9';
+  redondearRect(ctx, btn2X, btnY, btnW, btnH, 8);
   ctx.fill();
-  ctx.fillStyle = '#1a4d80';
-  ctx.font = 'bold 26px Arial';
-  ctx.fillText('👁️ Ver', btnVerX + btnW / 2, btnY + 42);
+  ctx.fillStyle = '#7b3fa0';
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText('🛒', btn2X + btnW / 2, btnY + 26);
 }
 
+// ── helpers de dibujo ──
 function redondearRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -2708,10 +2800,10 @@ function generarCatalogoHTMLString(paraPDF) {
   html += '.desc-mini{font-size:11px;color:#6b7a90;line-height:1.35;margin-bottom:8px;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}';
   html += '.badge-link{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#2d7ac0;background:#eaf1f9;border-radius:8px;padding:2px 6px;margin-bottom:6px;align-self:flex-start}';
   html += '.acciones{display:flex;gap:4px;margin-top:auto}';
-  html += '.btn-solicitar,.btn-ver{flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px;text-decoration:none}';
+  html += '.btn-solicitar,.btn-carrito{flex:1;padding:9px 4px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px;text-decoration:none}';
   html += '.btn-solicitar{background:linear-gradient(135deg,#25D366,#128C7E);color:#fff}';
-  html += '.btn-ver{background:#eaf1f9;color:#1a4d80;flex:0 0 40px}';
-  html += '.btn-solicitar:active,.btn-ver:active{transform:scale(.96)}';
+  html += '.btn-carrito{background:#f0e9f9;color:#7b3fa0;flex:1;font-size:14px}';
+  html += '.btn-solicitar:active{transform:scale(.96)}';
   html += '.footer{text-align:center;padding:30px 20px;font-size:12px;color:#6b7a90;background:#fff;margin-top:30px}';
   html += '.footer a{font-weight:700;text-decoration:none;font-size:14px}';
   html += '.footer .wa{color:#25D366}';
@@ -2748,14 +2840,15 @@ function generarCatalogoHTMLString(paraPDF) {
   html += '.desc-mini{-webkit-line-clamp:2;font-size:10.5px}';
   html += '.cat{font-size:9px;padding:2px 6px}';
   html += '.btn-solicitar{font-size:11px;padding:8px 2px}';
-  html += '.btn-ver{flex:0 0 34px;padding:8px 0;font-size:12px}';
+  html += '.btn-carrito{flex:1;padding:8px 0;font-size:13px}';
   html += '.header h1{font-size:18px}';
   html += '.header{padding:18px 12px}';
   html += '.buscador{font-size:14px;padding:10px 12px}';
   html += '}';
   if (paraPDF) {
-    html += '@media print{.buscador-wrap,.btn-solicitar,.btn-ver,.modal,.modal-close,.btn-compartir-link{display:none!important}body{background:#fff}.card{box-shadow:none;border:1px solid #eee;cursor:auto}.grid{grid-template-columns:repeat(3,1fr)}}';
+    html += '@media print{.buscador-wrap,.btn-solicitar,.modal,.modal-close,.btn-compartir-link{display:none!important}body{background:#fff}.card{box-shadow:none;border:1px solid #eee;cursor:auto}.grid{grid-template-columns:repeat(3,1fr)}}';
   }
+  html += "\n.carrito-flotante{position:fixed;bottom:24px;right:16px;z-index:900;width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#7b3fa0,#5d2d7a);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 6px 24px rgba(123,63,160,.5);display:flex;align-items:center;justify-content:center;transition:transform .15s;font-family:inherit}\n.carrito-flotante:active{transform:scale(.92)}\n.carrito-flotante.oculto{display:none}\n.carrito-contador{position:absolute;top:-4px;right:-4px;background:#25D366;color:#fff;font-size:13px;font-weight:800;min-width:24px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0 6px;border:2px solid #fff;font-family:inherit}\n.carrito-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}\n.carrito-overlay.open{display:flex}\n.carrito-panel{background:#fff;width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.3);animation:subirPanel .25s ease}\n@keyframes subirPanel{from{transform:translateY(100%)}to{transform:translateY(0)}}\n.carrito-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #eaf1f9;flex-shrink:0}\n.carrito-header h2{margin:0;font-size:18px;color:#1a4d80;font-weight:800}\n.carrito-cerrar{background:#eaf1f9;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;font-weight:700;color:#1a4d80;cursor:pointer;font-family:inherit}\n.carrito-lista{flex:1;overflow-y:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch;min-height:100px}\n.carrito-vacio{text-align:center;padding:40px 20px;color:#999;font-style:italic;font-size:14px}\n.carrito-vacio .emoji{font-size:56px;display:block;margin-bottom:12px}\n.carrito-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f0f4f9;align-items:center}\n.carrito-item-foto{width:56px;height:56px;border-radius:8px;background:#f8faff;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:26px}\n.carrito-item-foto img{width:100%;height:100%;object-fit:cover}\n.carrito-item-info{flex:1;min-width:0}\n.carrito-item-nombre{font-size:13px;font-weight:700;color:#1a4d80;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.carrito-item-precio{font-size:12px;color:#217a44;font-weight:700;margin-bottom:4px}\n.carrito-cantidad{display:flex;align-items:center;gap:6px}\n.carrito-cantidad button{width:26px;height:26px;border:none;border-radius:6px;background:#eaf1f9;color:#1a4d80;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}\n.carrito-cantidad button:active{transform:scale(.92)}\n.carrito-cantidad span{font-size:14px;font-weight:700;color:#1a4d80;min-width:20px;text-align:center}\n.carrito-item-subtotal{font-size:13px;font-weight:800;color:#217a44;margin-left:6px}\n.carrito-item-quitar{background:#fdecea;color:#c0392b;border:none;width:32px;height:32px;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;flex-shrink:0}\n.carrito-item-quitar:active{transform:scale(.92)}\n.carrito-totales{background:#f8faff;border-radius:12px;padding:12px 14px;margin-bottom:12px;flex-shrink:0}\n.carrito-fila-total{display:flex;justify-content:space-between;font-size:14px;color:#6b7a90;margin-bottom:4px}\n.carrito-fila-total.gran-total{font-size:17px;font-weight:800;color:#1a4d80;margin-top:8px;padding-top:8px;border-top:2px solid #eaf1f9;margin-bottom:0}\n.carrito-datos{margin-bottom:12px;flex-shrink:0}\n.carrito-datos input{width:100%;padding:10px 12px;border:2px solid #c8d2e0;border-radius:8px;font-family:inherit;font-size:14px;margin-bottom:6px;box-sizing:border-box}\n.carrito-datos input:focus{outline:none;border-color:#2d7ac0}\n.carrito-btn-enviar{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0}\n.carrito-btn-enviar:active{transform:scale(.98)}\n.carrito-btn-enviar:disabled{background:#c8d2e0;cursor:not-allowed}\n.carrito-btn-vaciar{width:100%;padding:10px;border:none;border-radius:8px;background:#fdecea;color:#c0392b;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:none;flex-shrink:0}\n@media(max-width:380px){.carrito-panel{padding:16px}.carrito-header h2{font-size:16px}.carrito-item-foto{width:48px;height:48px}}\n";
   html += '</style></head><body>';
   html += '<div class="header"><h1>🏪 ' + esc(neg.nombre) + '</h1>';
   if (neg.direccion) html += '<p class="meta">📍 ' + esc(neg.direccion) + '</p>';
@@ -2815,7 +2908,7 @@ function generarCatalogoHTMLString(paraPDF) {
     if (badgeLink) html += badgeLink;
     if (descMini) html += '<div class="desc-mini">' + descMini + '</div>';
     html += '<div class="acciones">' + botonSolicitar +
-      '<button class="btn-ver" onclick="event.stopPropagation();abrirDetalle(' + idx + ')" title="Ver detalle">👁️</button>' +
+      '<button class="btn-carrito" onclick="event.stopPropagation();agregarAlCarrito(' + idx + ')" title="Agregar al carrito">🛒</button>' +
       '</div>';
     html += '</div>';
   });
@@ -2839,6 +2932,7 @@ function generarCatalogoHTMLString(paraPDF) {
       nombre: p.nombre || '',
       categoria: p.categoria || 'General',
       precio: precioTxt,
+      precioNum: (p.precio !== null && p.precio !== undefined && p.precio !== '') ? Number(p.precio) : 0,
       precioAnterior: precioAntTxt,
       descuento: desc,
       etiqueta: p.etiqueta || '',
@@ -2950,7 +3044,9 @@ function generarCatalogoHTMLString(paraPDF) {
   html += 'else{window.open("https://wa.me/?text="+encodeURIComponent(texto),"_blank");}';
   html += '}';
   html += 'document.addEventListener("keydown",function(e){if(e.key==="Escape")cerrarDetalle();});';
+  html += "\n// ═══ CARRITO DE COMPRAS ═══\nvar CARRITO = [];\nvar CARRITO_KEY = \"catalogo_carrito_v1\";\n\nfunction parsePrecio(str) {\n  if (!str) return 0;\n  var n = String(str).replace(/[^\\d.,]/g, \"\").replace(\",\", \".\");\n  var v = parseFloat(n);\n  return isNaN(v) ? 0 : v;\n}\n\nfunction formatearPrecio(n) {\n  if (n == null || isNaN(n)) return \"$ 0.00\";\n  return \"$ \" + Number(n).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \",\");\n}\n\nfunction cargarCarrito() {\n  try {\n    var raw = localStorage.getItem(CARRITO_KEY);\n    if (raw) CARRITO = JSON.parse(raw) || [];\n  } catch (e) { CARRITO = []; }\n  CARRITO = CARRITO.filter(function (item) {\n    return item && typeof item.idx === \"number\" && typeof item.cantidad === \"number\" && item.cantidad > 0;\n  });\n}\n\nfunction guardarCarrito() {\n  try { localStorage.setItem(CARRITO_KEY, JSON.stringify(CARRITO)); } catch (e) {}\n  actualizarContadorCarrito();\n}\n\nfunction agregarAlCarrito(idx) {\n  var p = PRODUCTOS[idx];\n  if (!p) return;\n  var existe = CARRITO.find(function (item) { return item.idx === idx; });\n  if (existe) {\n    existe.cantidad++;\n  } else {\n    CARRITO.push({\n      idx: idx,\n      nombre: p.nombre,\n      precioNum: (typeof p.precioNum === 'number' && !isNaN(p.precioNum)) ? p.precioNum : parsePrecio(p.precio),\n      foto: p.foto || \"\",\n      cantidad: 1\n    });\n  }\n  guardarCarrito();\n  mostrarToastCarrito(\"🛒 Agregado al carrito\");\n}\n\nfunction cambiarCantidadCarrito(idx, delta) {\n  var item = CARRITO.find(function (i) { return i.idx === idx; });\n  if (!item) return;\n  item.cantidad += delta;\n  if (item.cantidad <= 0) { quitarDelCarrito(idx); return; }\n  guardarCarrito();\n  renderizarCarrito();\n}\n\nfunction quitarDelCarrito(idx) {\n  CARRITO = CARRITO.filter(function (i) { return i.idx !== idx; });\n  guardarCarrito();\n  renderizarCarrito();\n}\n\nfunction vaciarCarrito() {\n  if (!CARRITO.length) return;\n  if (!confirm(\"¿Vaciar el carrito?\")) return;\n  CARRITO = [];\n  guardarCarrito();\n  renderizarCarrito();\n}\n\nfunction cantidadTotalCarrito() {\n  return CARRITO.reduce(function (sum, i) { return sum + i.cantidad; }, 0);\n}\n\nfunction totalCarrito() {\n  return CARRITO.reduce(function (sum, i) { return sum + (i.precioNum || 0) * i.cantidad; }, 0);\n}\n\nfunction actualizarContadorCarrito() {\n  var btn = document.getElementById(\"carritoFlotante\");\n  var cont = document.getElementById(\"carritoContador\");\n  if (!btn || !cont) return;\n  var n = cantidadTotalCarrito();\n  if (n > 0) {\n    btn.classList.remove(\"oculto\");\n    cont.textContent = n > 99 ? \"99+\" : String(n);\n    cont.style.display = \"flex\";\n  } else {\n    btn.classList.add(\"oculto\");\n    cont.style.display = \"none\";\n  }\n}\n\nfunction abrirCarrito() {\n  renderizarCarrito();\n  var overlay = document.getElementById(\"carritoOverlay\");\n  if (overlay) overlay.classList.add(\"open\");\n  document.body.style.overflow = \"hidden\";\n}\n\nfunction cerrarCarrito() {\n  var overlay = document.getElementById(\"carritoOverlay\");\n  if (overlay) overlay.classList.remove(\"open\");\n  document.body.style.overflow = \"\";\n}\n\nfunction renderizarCarrito() {\n  var lista = document.getElementById(\"carritoLista\");\n  var totalEl = document.getElementById(\"carritoTotal\");\n  var subtotalEl = document.getElementById(\"carritoSubtotal\");\n  var articulosEl = document.getElementById(\"carritoArticulos\");\n  var btnEnviar = document.getElementById(\"carritoBtnEnviar\");\n  var btnVaciar = document.getElementById(\"carritoBtnVaciar\");\n  if (!lista) return;\n\n  if (!CARRITO.length) {\n    lista.innerHTML = '<div class=\"carrito-vacio\"><span class=\"emoji\">🛒</span>Tu carrito está vacío.<br><br>Toca el botón 🛒 en un producto para agregarlo.</div>';\n    if (totalEl) totalEl.textContent = formatearPrecio(0);\n    if (subtotalEl) subtotalEl.textContent = formatearPrecio(0);\n    if (articulosEl) articulosEl.textContent = \"0 productos\";\n    if (btnEnviar) btnEnviar.disabled = true;\n    if (btnVaciar) btnVaciar.style.display = \"none\";\n    return;\n  }\n\n  var html = \"\";\n  CARRITO.forEach(function (item) {\n    var subtotal = (item.precioNum || 0) * item.cantidad;\n    html += '<div class=\"carrito-item\">';\n    html += '<div class=\"carrito-item-foto\">' + (item.foto ? '<img src=\"' + item.foto + '\">' : \"📷\") + \"</div>\";\n    html += '<div class=\"carrito-item-info\">';\n    html += '<div class=\"carrito-item-nombre\">' + item.nombre + \"</div>\";\n    html += '<div class=\"carrito-item-precio\">' + (item.precioNum ? formatearPrecio(item.precioNum) + \" c/u\" : \"Precio a consultar\") + \"</div>\";\n    html += '<div class=\"carrito-cantidad\">';\n    html += '<button onclick=\"cambiarCantidadCarrito(' + item.idx + ', -1)\">−</button>';\n    html += '<span>' + item.cantidad + \"</span>\";\n    html += '<button onclick=\"cambiarCantidadCarrito(' + item.idx + ', 1)\">+</button>';\n    html += '<span class=\"carrito-item-subtotal\">= ' + formatearPrecio(subtotal) + \"</span>\";\n    html += \"</div>\";\n    html += \"</div>\";\n    html += '<button class=\"carrito-item-quitar\" onclick=\"quitarDelCarrito(' + item.idx + ')\">🗑️</button>';\n    html += \"</div>\";\n  });\n  lista.innerHTML = html;\n\n  var total = totalCarrito();\n  var cant = cantidadTotalCarrito();\n  if (totalEl) totalEl.textContent = formatearPrecio(total);\n  if (subtotalEl) subtotalEl.textContent = formatearPrecio(total);\n  if (articulosEl) articulosEl.textContent = cant + \" producto\" + (cant === 1 ? \"\" : \"s\");\n  if (btnEnviar) btnEnviar.disabled = false;\n  if (btnVaciar) btnVaciar.style.display = \"block\";\n}\n\nfunction mostrarToastCarrito(msg) {\n  var t = document.getElementById(\"carritoToast\");\n  if (!t) {\n    t = document.createElement(\"div\");\n    t.id = \"carritoToast\";\n    t.style.cssText = \"position:fixed;bottom:160px;left:50%;transform:translateX(-50%);background:#25D366;color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;z-index:2000;box-shadow:0 4px 16px rgba(0,0,0,.3);opacity:0;transition:opacity .3s;pointer-events:none;font-family:inherit;max-width:90vw;text-align:center\";\n    document.body.appendChild(t);\n  }\n  t.textContent = msg;\n  t.style.opacity = \"1\";\n  clearTimeout(t._timer);\n  t._timer = setTimeout(function () { t.style.opacity = \"0\"; }, 2000);\n}\n\nfunction enviarPedidoWhatsApp() {\n  if (!CARRITO.length) return;\n  var nombreCliente = (document.getElementById(\"carritoClienteNombre\") || {}).value || \"\";\n  var telCliente = (document.getElementById(\"carritoClienteTelefono\") || {}).value || \"\";\n  var notas = (document.getElementById(\"carritoClienteNotas\") || {}).value || \"\";\n  nombreCliente = nombreCliente.trim();\n  telCliente = telCliente.trim();\n  notas = notas.trim();\n\n  var lineas = [];\n  lineas.push(\"🛒 *NUEVO PEDIDO*\");\n  lineas.push(\"🏪 *\" + NEGOCIO.nombre + \"*\");\n  lineas.push(\"\");\n  lineas.push(\"📋 *Detalle del pedido:*\");\n  lineas.push(\"\");\n\n  var total = 0;\n  var n = 1;\n  CARRITO.forEach(function (item) {\n    var subtotal = (item.precioNum || 0) * item.cantidad;\n    total += subtotal;\n    lineas.push(\"*\" + n + \". \" + item.nombre + \"*\");\n    lineas.push(\"   \" + item.cantidad + \" × \" + formatearPrecio(item.precioNum) + \" = \" + formatearPrecio(subtotal));\n    n++;\n  });\n\n  lineas.push(\"\");\n  lineas.push(\"─────────────────────\");\n  lineas.push(\"📦 *Artículos:* \" + cantidadTotalCarrito());\n  lineas.push(\"💰 *TOTAL A PAGAR:* \" + formatearPrecio(total));\n  lineas.push(\"─────────────────────\");\n\n  if (nombreCliente || telCliente || notas) {\n    lineas.push(\"\");\n    if (nombreCliente) lineas.push(\"👤 *Cliente:* \" + nombreCliente);\n    if (telCliente) lineas.push(\"📱 *Contacto:* \" + telCliente);\n    if (notas) lineas.push(\"📝 *Notas:* \" + notas);\n  }\n\n  lineas.push(\"\");\n  lineas.push(\"📅 \" + new Date().toLocaleString(\"es-ES\"));\n  lineas.push(\"_Enviado desde el catálogo online_ 🛍️\");\n\n  var mensaje = lineas.join(\"\\n\");\n  var url;\n  if (typeof CONTACTO !== \"undefined\" && CONTACTO.tipo === \"tel\" && CONTACTO.telDigitos) {\n    url = \"https://wa.me/\" + CONTACTO.telDigitos + \"?text=\" + encodeURIComponent(mensaje);\n  } else if (typeof CONTACTO !== \"undefined\" && CONTACTO.tipo === \"link\" && CONTACTO.valor) {\n    try { navigator.clipboard.writeText(mensaje); } catch (e) {}\n    url = CONTACTO.valor;\n  } else {\n    url = \"https://wa.me/?text=\" + encodeURIComponent(mensaje);\n  }\n  window.open(url, \"_blank\");\n  mostrarToastCarrito(\"📲 Abriendo WhatsApp...\");\n}\n\ncargarCarrito();\nsetTimeout(function () { actualizarContadorCarrito(); }, 100);\n";
   html += '<\/script>';
+  html += "\n<button id=\"carritoFlotante\" class=\"carrito-flotante oculto\" onclick=\"abrirCarrito()\" title=\"Ver carrito\">\n🛒<span id=\"carritoContador\" class=\"carrito-contador\" style=\"display:none;\">0</span>\n</button>\n<div id=\"carritoOverlay\" class=\"carrito-overlay\" onclick=\"if(event.target===this)cerrarCarrito()\">\n<div class=\"carrito-panel\">\n<div class=\"carrito-header\">\n<h2>🛒 Mi pedido</h2>\n<button class=\"carrito-cerrar\" onclick=\"cerrarCarrito()\">✕</button>\n</div>\n<div class=\"carrito-lista\" id=\"carritoLista\"></div>\n<div class=\"carrito-totales\">\n<div class=\"carrito-fila-total\">\n<span id=\"carritoArticulos\">0 productos</span>\n<span id=\"carritoSubtotal\">$ 0.00</span>\n</div>\n<div class=\"carrito-fila-total gran-total\">\n<span>💰 Total:</span>\n<span id=\"carritoTotal\">$ 0.00</span>\n</div>\n</div>\n<div class=\"carrito-datos\">\n<input type=\"text\" id=\"carritoClienteNombre\" placeholder=\"Tu nombre (opcional)\" maxlength=\"60\">\n<input type=\"tel\" id=\"carritoClienteTelefono\" placeholder=\"Tu teléfono (opcional)\" maxlength=\"30\">\n<input type=\"text\" id=\"carritoClienteNotas\" placeholder=\"Notas para el pedido (opcional)\" maxlength=\"200\">\n</div>\n<button class=\"carrito-btn-enviar\" id=\"carritoBtnEnviar\" onclick=\"enviarPedidoWhatsApp()\">💬 Enviar pedido por WhatsApp</button>\n<button class=\"carrito-btn-vaciar\" id=\"carritoBtnVaciar\" onclick=\"vaciarCarrito()\">🗑️ Vaciar carrito</button>\n</div>\n</div>\n";
   html += '</body></html>';
   return html;
 }
@@ -3089,9 +3185,6 @@ function procesarLoteTexto() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
 // Parche v3: barras colapsables y menú unificado
 // ═══════════════════════════════════════════════════════════
 function toggleImportar() {
@@ -3147,6 +3240,9 @@ function ajustarPaddingInferior() {
 setTimeout(ajustarPaddingInferior, 200);
 window.addEventListener("resize", ajustarPaddingInferior);
 
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
 (function init() {
   if (!obtenerTrial()) iniciarTrial();
   cargar().then(function () {
