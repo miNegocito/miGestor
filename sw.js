@@ -1,4 +1,4 @@
-const CACHE = 'gestor-ventas-v1.15.4';
+const CACHE = 'gestor-ventas-v1.16.1';
 const ASSETS = ['./index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
