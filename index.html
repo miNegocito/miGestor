@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Gestor de Ventas 1.16.1 — Catálogo online + Categorías</title>
+<title>Gestor de Ventas 1.18 — Aplicación para Gestores de Ventas</title>
 <meta name="theme-color" content="#1a4d80">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -277,6 +277,798 @@
   .cat-lote-info { flex: 1; min-width: 0; }
   .cat-lote-nombre { font-weight: 700; color: #1a4d80; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cat-lote-cat { font-size: 10px; color: #888; }
+</style>
+<style id="v117-styles">
+:root{
+  --header-color-1:#1a4d80;
+  --header-color-2:#2d7ac0;
+}
+body[data-tema="verde"]    { --header-color-1:#1a7a4d; --header-color-2:#2dc070; }
+body[data-tema="rojo"]     { --header-color-1:#802020; --header-color-2:#c0392b; }
+body[data-tema="morado"]   { --header-color-1:#5d2d7a; --header-color-2:#7b3fa0; }
+body[data-tema="naranja"]  { --header-color-1:#a04500; --header-color-2:#e08a1e; }
+body[data-tema="negro"]    { --header-color-1:#111;     --header-color-2:#444;   }
+body[data-tema="rosa"]     { --header-color-1:#a01050; --header-color-2:#e1306c; }
+body[data-tema="turquesa"] { --header-color-1:#0a5a6a; --header-color-2:#0a8f9c; }
+
+header{ background:linear-gradient(135deg,var(--header-color-1),var(--header-color-2))!important; }
+
+.header-top{ display:flex; align-items:center; gap:10px; }
+.header-top h1{ margin:0!important; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.btn-hamburguesa{
+  background:rgba(255,255,255,.2); border:none; color:#fff;
+  width:40px; height:40px; border-radius:8px; font-size:20px;
+  cursor:pointer; font-family:inherit; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.btn-hamburguesa:active{ background:rgba(255,255,255,.35); }
+
+.drawer-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.5);
+  z-index:900; opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.drawer-overlay.abierto{ opacity:1; pointer-events:auto; }
+
+.drawer{
+  position:fixed; top:0; left:0; bottom:0;
+  width:min(88vw,340px); background:#fff; z-index:901;
+  transform:translateX(-100%); transition:transform .28s ease;
+  box-shadow:2px 0 24px rgba(0,0,0,.25);
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  display:flex; flex-direction:column;
+}
+.drawer.abierto{ transform:translateX(0); }
+
+.drawer-header{
+  background:linear-gradient(135deg,var(--header-color-1),var(--header-color-2));
+  color:#fff; padding:16px; display:flex; align-items:center;
+  justify-content:space-between; font-size:16px; font-weight:700;
+  position:sticky; top:0; z-index:1;
+}
+.drawer-header button{
+  background:rgba(255,255,255,.2); border:none; color:#fff;
+  width:34px; height:34px; border-radius:8px; font-size:16px;
+  cursor:pointer; font-family:inherit;
+}
+
+.drawer-seccion{ padding:12px 16px; border-bottom:1px solid #f0f4f9; }
+.drawer-seccion-titulo{
+  font-size:11px; font-weight:800; color:#6b7a90;
+  text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px;
+}
+.drawer-seccion input,
+.drawer-seccion select{
+  width:100%; padding:10px; border:1px solid #c8d2e0; border-radius:8px;
+  font-family:inherit; font-size:14px; background:#fff;
+  margin-bottom:6px; box-sizing:border-box;
+}
+.drawer-seccion input:last-child,
+.drawer-seccion select:last-child{ margin-bottom:0; }
+.drawer-seccion button:not(.tema-btn){
+  width:100%; padding:11px 12px; margin-bottom:6px; border:none;
+  border-radius:8px; background:#f4f6fa; color:#1a4d80;
+  font-family:inherit; font-weight:700; font-size:13px;
+  text-align:left; cursor:pointer; display:flex; align-items:center; gap:8px;
+}
+.drawer-seccion button:not(.tema-btn):last-child{ margin-bottom:0; }
+.drawer-seccion button:not(.tema-btn):active{ background:#eaf1f9; transform:scale(.98); }
+.drawer-seccion button.danger{ background:#fdecea; color:#c0392b; }
+
+/* Hacer visibles los campos del negocio dentro del drawer */
+.drawer .header-fields,
+.drawer .header-fields.collapsed{ display:block!important; }
+.drawer .header-fields .seccion-titulo{ display:none; }
+.drawer .header-fields .ayuda-mini{
+  font-size:10px; color:#888; margin:-2px 0 8px 2px; padding:0;
+}
+/* Estilo del selector de negocios dentro del drawer */
+.drawer .selector-negocio{ margin-bottom:8px; }
+.drawer .selector-negocio select{
+  background:#f4f6fa; color:#1a4d80; border-color:#c8d2e0;
+}
+.drawer .selector-negocio .btn-hdr{
+  background:#f4f6fa; color:#1a4d80;
+}
+.drawer .selector-negocio .btn-hdr.danger{
+  background:#fdecea; color:#c0392b;
+}
+
+/* Temas */
+.tema-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.tema-btn{
+  padding:12px 8px!important; text-align:center!important;
+  justify-content:center!important; font-size:12px!important;
+  border:2px solid transparent!important; color:#fff!important;
+  font-weight:800!important; min-height:44px; border-radius:8px;
+  cursor:pointer; font-family:inherit;
+}
+.tema-btn.sel{ border-color:#fff!important; box-shadow:0 0 0 3px rgba(45,122,192,.45); }
+.tema-btn[data-tema="azul"]     { background:linear-gradient(135deg,#1a4d80,#2d7ac0)!important; }
+.tema-btn[data-tema="verde"]    { background:linear-gradient(135deg,#1a7a4d,#2dc070)!important; }
+.tema-btn[data-tema="rojo"]     { background:linear-gradient(135deg,#802020,#c0392b)!important; }
+.tema-btn[data-tema="morado"]   { background:linear-gradient(135deg,#5d2d7a,#7b3fa0)!important; }
+.tema-btn[data-tema="naranja"]  { background:linear-gradient(135deg,#a04500,#e08a1e)!important; }
+.tema-btn[data-tema="negro"]    { background:linear-gradient(135deg,#111,#444)!important; }
+.tema-btn[data-tema="rosa"]     { background:linear-gradient(135deg,#a01050,#e1306c)!important; }
+.tema-btn[data-tema="turquesa"] { background:linear-gradient(135deg,#0a5a6a,#0a8f9c)!important; }
+
+body.drawer-abierto{ overflow:hidden; }
+
+/* Buscador en la toolbar */
+#buscarProducto{
+  flex:1; min-width:130px; padding:9px 10px; font-size:13px;
+  border:2px solid #c8d2e0; border-radius:8px; font-family:inherit;
+  background:#fff;
+}
+
+/* ═══ Tarjeta compacta + expandible ═══ */
+.tarjeta{ padding:6px!important; cursor:pointer; user-select:none; }
+.tarjeta:hover{ transform:translateY(-2px)!important; }
+.tarjeta-foto{ margin-bottom:5px!important; }
+.tarjeta-nombre{
+  font-size:11px!important; line-height:1.2!important; margin-bottom:3px!important;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.tarjeta-precio{ font-size:14px!important; margin-bottom:4px!important; }
+.tarjeta .tarjeta-cat,
+.tarjeta .tarjeta-desc,
+.tarjeta .tarjeta-enlace-badge{ display:none!important; }
+.tarjeta.expandida .tarjeta-cat{ display:inline-block!important; }
+.tarjeta.expandida .tarjeta-desc{
+  display:-webkit-box!important; -webkit-line-clamp:6;
+  -webkit-box-orient:vertical; overflow:hidden;
+}
+.tarjeta.expandida .tarjeta-enlace-badge{ display:inline-flex!important; }
+.tarjeta.expandida{ box-shadow:0 8px 24px rgba(0,0,0,.18)!important; border:1px solid #eaf1f9; }
+.tarjeta-acciones button{ padding:6px 0!important; font-size:10px!important; min-height:28px; }
+</style>
+<style id="v118-rediseno">
+/* ═══════════════════════════════════════════════════════════
+   REDISEÑO 1.18 — Limpio, profesional, minimalista
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --bg:#f7f9fc;
+  --surface:#ffffff;
+  --surface-2:#f1f5f9;
+  --border:#e5eaf1;
+  --border-2:#d6dee9;
+  --text:#0f172a;
+  --text-2:#64748b;
+  --text-3:#94a3b8;
+  --accent:#2563eb;
+  --accent-2:#1d4ed8;
+  --accent-soft:#eff4ff;
+  --success:#10b981;
+  --success-soft:#ecfdf5;
+  --danger:#ef4444;
+  --danger-soft:#fef2f2;
+  --warn:#f59e0b;
+  --warn-soft:#fffbeb;
+  --radius:16px;
+  --radius-sm:12px;
+  --radius-xs:8px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.05);
+  --shadow:0 4px 20px rgba(15,23,42,.08);
+  --shadow-lg:0 24px 64px rgba(15,23,42,.22);
+  --ring:0 0 0 3px rgba(37,99,235,.18);
+}
+
+/* ── Base ── */
+body{
+  background:var(--bg)!important;
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:100px;
+}
+
+/* ── Header ── */
+header{
+  padding:16px 16px 18px!important;
+  border-radius:0 0 22px 22px!important;
+  box-shadow:0 4px 24px rgba(0,0,0,.12)!important;
+}
+header h1{
+  font-size:19px!important;
+  font-weight:800!important;
+  letter-spacing:-.02em;
+}
+
+/* ── Toolbar ── */
+.toolbar{
+  background:var(--surface)!important;
+  border-bottom:1px solid var(--border);
+  box-shadow:none!important;
+  padding:10px 14px!important;
+  gap:8px!important;
+}
+.toolbar .filtro-cat,
+#buscarProducto{
+  border:1.5px solid var(--border)!important;
+  border-radius:var(--radius-sm)!important;
+  background:var(--surface-2)!important;
+  font-size:13px!important;
+  padding:9px 12px!important;
+  font-weight:600;
+  color:var(--text);
+  transition:.15s;
+}
+.toolbar .filtro-cat:focus,
+#buscarProducto:focus{
+  outline:none;
+  border-color:var(--accent)!important;
+  background:var(--surface)!important;
+  box-shadow:var(--ring);
+}
+
+/* ── Botones ── */
+.btn{
+  border-radius:var(--radius-sm)!important;
+  font-weight:700!important;
+  letter-spacing:-.01em;
+  padding:9px 14px!important;
+  font-size:13px!important;
+  transition:transform .12s, filter .15s, box-shadow .15s!important;
+  box-shadow:var(--shadow-sm);
+}
+.btn:active{transform:scale(.97)!important}
+.btn-azul   {background:var(--accent)!important;color:#fff!important}
+.btn-verde  {background:var(--success)!important;color:#fff!important}
+.btn-gris   {background:var(--surface-2)!important;color:var(--text)!important}
+.btn-rojo   {background:var(--danger)!important;color:#fff!important}
+.btn-morado {background:#7c3aed!important;color:#fff!important}
+.btn-naranja{background:var(--warn)!important;color:#fff!important}
+.btn-azul:hover,.btn-verde:hover,.btn-rojo:hover,
+.btn-morado:hover,.btn-naranja:hover{filter:brightness(1.06)}
+
+/* ── Tarjetas MINIMALISTAS ── */
+#gridProductos{
+  gap:14px!important;
+  padding:14px 14px 24px!important;
+}
+.tarjeta{
+  padding:10px!important;
+  border-radius:var(--radius)!important;
+  background:var(--surface)!important;
+  box-shadow:var(--shadow-sm)!important;
+  border:1px solid var(--border)!important;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s!important;
+  cursor:pointer;
+  overflow:hidden;
+  position:relative;
+}
+.tarjeta:hover{
+  transform:translateY(-2px)!important;
+  box-shadow:var(--shadow)!important;
+  border-color:var(--border-2)!important;
+}
+.tarjeta:active{transform:scale(.98)!important}
+
+.tarjeta-foto{
+  border-radius:var(--radius-sm)!important;
+  border:1px solid var(--border)!important;
+  background:var(--surface-2)!important;
+  margin-bottom:10px!important;
+  aspect-ratio:1/1;
+}
+.tarjeta-nombre{
+  font-size:13px!important;
+  font-weight:700!important;
+  color:var(--text)!important;
+  line-height:1.3!important;
+  margin:0 2px 6px!important;
+  -webkit-line-clamp:2;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.tarjeta-precio{
+  font-size:16px!important;
+  font-weight:800!important;
+  color:var(--text)!important;
+  letter-spacing:-.02em;
+  margin:0 2px 0!important;
+}
+.tarjeta-precio.sin-precio{
+  font-size:12px!important;
+  color:var(--text-3)!important;
+  font-style:normal!important;
+  font-weight:600!important;
+}
+
+/* Ocultar TODO lo demás en la tarjeta (vive en el modal) */
+.tarjeta .tarjeta-cat,
+.tarjeta .tarjeta-desc,
+.tarjeta .tarjeta-enlace-badge,
+.tarjeta .tarjeta-acciones,
+.tarjeta.expandida .tarjeta-cat,
+.tarjeta.expandida .tarjeta-desc,
+.tarjeta.expandida .tarjeta-enlace-badge{
+  display:none!important;
+}
+.tarjeta.expandida{box-shadow:var(--shadow)!important;border-color:var(--border-2)!important}
+
+/* Badge de oferta / etiqueta sobre la foto */
+.tarjeta-foto .oferta-badge{
+  position:absolute;
+  top:8px;
+  left:8px;
+  background:var(--danger);
+  color:#fff;
+  font-size:10px;
+  font-weight:800;
+  padding:3px 8px;
+  border-radius:999px;
+  letter-spacing:.3px;
+  box-shadow:0 2px 8px rgba(239,68,68,.4);
+}
+.tarjeta-foto .etiqueta-badge{
+  position:absolute;
+  top:8px;
+  left:8px;
+  background:rgba(15,23,42,.85);
+  color:#fff;
+  font-size:10px;
+  font-weight:800;
+  padding:3px 8px;
+  border-radius:999px;
+  backdrop-filter:blur(4px);
+}
+.tarjeta.agotado .tarjeta-foto::after{
+  content:'AGOTADO';
+  font-size:11px;
+  letter-spacing:1px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:rgba(239,68,68,.95)!important;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+}
+
+/* Vista lista minimalista */
+.fila-lista{
+  border-radius:var(--radius-sm)!important;
+  border:1px solid var(--border)!important;
+  padding:10px 12px!important;
+  box-shadow:var(--shadow-sm)!important;
+  transition:.15s;
+}
+.fila-lista:hover{border-color:var(--border-2)!important;box-shadow:var(--shadow)!important}
+.fila-lista .fl-foto{
+  border-radius:var(--radius-xs)!important;
+  border:1px solid var(--border)!important;
+}
+.fila-lista .fl-nombre{font-weight:700!important;color:var(--text)!important}
+.fila-lista .fl-precio{color:var(--text)!important;font-size:15px!important}
+
+/* ── Barra inferior ── */
+.barra-global{
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom))!important;
+  background:rgba(255,255,255,.94)!important;
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border)!important;
+  box-shadow:0 -8px 32px rgba(15,23,42,.08)!important;
+}
+.barra-global button{
+  border-radius:var(--radius-sm)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  padding:11px 8px!important;
+  letter-spacing:-.01em;
+}
+.barra-global .btn-catalogo{background:var(--success)!important;color:#fff!important}
+.barra-global .btn-texto  {background:var(--accent)!important;color:#fff!important}
+.barra-global .btn-mosaico{background:#7c3aed!important;color:#fff!important}
+.barra-global .btn-mas    {background:var(--surface-2)!important;color:var(--text)!important}
+.barra-global .btn-mas.abierto{background:var(--danger)!important;color:#fff!important}
+
+/* ── Inputs y formularios ── */
+.agregar-card{
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow-sm)!important;
+  background:var(--surface)!important;
+}
+.agregar-card h3{
+  color:var(--text)!important;
+  font-size:15px!important;
+  font-weight:800!important;
+}
+.agregar-card input,
+.agregar-card textarea,
+.agregar-card select,
+.modal-caja input,
+.modal-caja textarea,
+.modal-caja select{
+  border:1.5px solid var(--border)!important;
+  border-radius:var(--radius-xs)!important;
+  font-size:14px!important;
+  padding:10px 12px!important;
+  transition:.15s;
+  background:var(--surface);
+  color:var(--text);
+}
+.agregar-card input:focus,
+.agregar-card textarea:focus,
+.agregar-card select:focus,
+.modal-caja input:focus,
+.modal-caja textarea:focus,
+.modal-caja select:focus{
+  outline:none!important;
+  border-color:var(--accent)!important;
+  box-shadow:var(--ring);
+}
+
+/* ── Modales ── */
+.modal-overlay{
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  background:rgba(15,23,42,.55)!important;
+}
+.modal-caja{
+  border-radius:20px!important;
+  padding:22px!important;
+  box-shadow:var(--shadow-lg)!important;
+  border:1px solid rgba(255,255,255,.5);
+}
+.modal-caja h3{
+  color:var(--text)!important;
+  font-size:18px!important;
+  font-weight:800!important;
+  letter-spacing:-.02em;
+  margin-bottom:14px!important;
+}
+.modal-botones button{
+  border-radius:var(--radius-sm)!important;
+  font-weight:700!important;
+  padding:12px!important;
+  transition:.15s;
+}
+.modal-botones .btn-gris{background:var(--surface-2)!important;color:var(--text)!important}
+.modal-botones .btn-verde{background:var(--success)!important;color:#fff!important}
+.modal-botones .btn-azul{background:var(--accent)!important;color:#fff!important}
+
+/* ── Drawer lateral ── */
+.drawer{
+  width:min(90vw,360px)!important;
+  border-radius:0 22px 22px 0;
+  box-shadow:4px 0 40px rgba(15,23,42,.25)!important;
+}
+.drawer-header{
+  padding:20px 18px!important;
+  font-size:17px!important;
+  font-weight:800!important;
+  letter-spacing:-.02em;
+  border-radius:0 22px 0 0;
+}
+.drawer-seccion{
+  padding:14px 16px!important;
+  border-bottom:1px solid var(--surface-2)!important;
+}
+.drawer-seccion-titulo{
+  font-size:11px!important;
+  color:var(--text-3)!important;
+  letter-spacing:.8px!important;
+  font-weight:800!important;
+  margin-bottom:10px!important;
+}
+.drawer-seccion button:not(.tema-btn){
+  background:var(--surface-2)!important;
+  color:var(--text)!important;
+  border-radius:var(--radius-sm)!important;
+  font-weight:700!important;
+  padding:12px 14px!important;
+  transition:.15s;
+}
+.drawer-seccion button:not(.tema-btn):hover{
+  background:var(--accent-soft)!important;
+  color:var(--accent)!important;
+}
+.drawer-seccion button:not(.tema-btn).danger{
+  background:var(--danger-soft)!important;
+  color:var(--danger)!important;
+}
+
+/* Selector de temas más limpio */
+.tema-grid{
+  gap:8px!important;
+}
+.tema-btn{
+  border-radius:var(--radius-sm)!important;
+  min-height:48px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  letter-spacing:.2px;
+  box-shadow:var(--shadow-sm);
+  transition:.15s;
+}
+.tema-btn.sel{
+  box-shadow:0 0 0 3px rgba(37,99,235,.35)!important;
+  transform:scale(1.04);
+}
+
+/* ── Toast ── */
+#toast{
+  border-radius:14px!important;
+  padding:14px 22px!important;
+  font-weight:700!important;
+  font-size:13px!important;
+  box-shadow:0 10px 40px rgba(15,23,42,.3)!important;
+  bottom:120px!important;
+}
+#toast:not(.error):not(.info):not(.warn){background:var(--text)!important}
+
+/* ── Buscador ── */
+#buscarProducto{
+  flex:1 1 100%!important;
+  min-width:0!important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL DE DETALLE DE PRODUCTO (flotante completo)
+   ═══════════════════════════════════════════════════════════ */
+#modalDetalleProducto{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.6);
+  z-index:1500;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:14px;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  animation:fadeIn .18s ease;
+}
+#modalDetalleProducto.abierto{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+.detalle-caja{
+  background:var(--surface);
+  border-radius:22px;
+  max-width:480px;
+  width:100%;
+  max-height:94vh;
+  overflow-y:auto;
+  box-shadow:0 30px 80px rgba(15,23,42,.4);
+  position:relative;
+  animation:slideUp .22s ease;
+  -webkit-overflow-scrolling:touch;
+}
+.detalle-cerrar{
+  position:sticky;
+  top:12px;
+  margin-left:auto;
+  margin-right:12px;
+  margin-top:12px;
+  z-index:2;
+  width:36px;height:36px;
+  border-radius:50%;
+  border:none;
+  background:rgba(15,23,42,.72);
+  color:#fff;
+  font-size:15px;
+  font-weight:800;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);
+  float:right;
+  box-shadow:0 4px 16px rgba(0,0,0,.2);
+  transition:.15s;
+}
+.detalle-cerrar:hover{background:var(--danger)}
+
+.detalle-foto{
+  width:100%;
+  aspect-ratio:1/1;
+  background:var(--surface-2);
+  border-radius:22px 22px 0 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:80px;
+  overflow:hidden;
+  margin-top:-48px;
+  position:relative;
+}
+.detalle-foto img{
+  width:100%;height:100%;
+  object-fit:cover;
+}
+.detalle-foto .det-badge{
+  position:absolute;
+  top:60px;
+  left:16px;
+  background:var(--danger);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  padding:5px 12px;
+  border-radius:999px;
+  letter-spacing:.4px;
+  box-shadow:0 4px 16px rgba(239,68,68,.45);
+}
+.detalle-foto .det-badge.etiqueta{
+  background:rgba(15,23,42,.85);
+}
+
+.detalle-body{
+  padding:18px 20px 22px;
+}
+.detalle-cat{
+  display:inline-block;
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.6px;
+  text-transform:uppercase;
+  padding:3px 10px;
+  border-radius:999px;
+  margin-bottom:8px;
+}
+.detalle-nombre{
+  font-size:22px;
+  font-weight:800;
+  color:var(--text);
+  letter-spacing:-.02em;
+  line-height:1.25;
+  margin:0 0 12px;
+}
+.detalle-precios{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.detalle-precio{
+  font-size:26px;
+  font-weight:800;
+  color:var(--text);
+  letter-spacing:-.03em;
+}
+.detalle-precio.sin-precio{
+  font-size:14px;
+  color:var(--text-3);
+  font-weight:600;
+}
+.detalle-precio-ant{
+  font-size:14px;
+  color:var(--text-3);
+  text-decoration:line-through;
+  font-weight:600;
+}
+.detalle-desc{
+  font-size:14.5px;
+  line-height:1.6;
+  color:var(--text-2);
+  margin:0 0 16px;
+  white-space:pre-wrap;
+}
+.detalle-enlace{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--accent);
+  background:var(--accent-soft);
+  padding:8px 14px;
+  border-radius:var(--radius-xs);
+  text-decoration:none;
+  margin-bottom:16px;
+  word-break:break-all;
+}
+.detalle-enlace:hover{background:#dbeafe}
+
+.detalle-acciones{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:6px;
+}
+.detalle-acciones button{
+  padding:13px 10px;
+  border:none;
+  border-radius:var(--radius-sm);
+  font-family:inherit;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  transition:.15s;
+  box-shadow:var(--shadow-sm);
+}
+.detalle-acciones button:active{transform:scale(.97)}
+.detalle-acciones .da-whatsapp{
+  grid-column:1 / -1;
+  background:linear-gradient(135deg,#25d366,#128c7e);
+  color:#fff;
+  font-size:14px;
+  font-weight:800;
+  padding:15px;
+  box-shadow:0 6px 20px rgba(37,211,102,.35);
+}
+.detalle-acciones .da-editar{background:var(--accent-soft);color:var(--accent)}
+.detalle-acciones .da-agotar{background:var(--warn-soft);color:#b45309}
+.detalle-acciones .da-reactivar{background:var(--success-soft);color:#047857}
+.detalle-acciones .da-eliminar{background:var(--danger-soft);color:var(--danger)}
+
+/* ── Móvil ── */
+@media (max-width:380px){
+  #gridProductos{grid-template-columns:1fr 1fr;gap:10px!important;padding:10px 10px 20px!important}
+  .tarjeta{padding:8px!important}
+  .tarjeta-nombre{font-size:12px!important}
+  .tarjeta-precio{font-size:14px!important}
+  .detalle-acciones{grid-template-columns:1fr}
+  .detalle-acciones .da-whatsapp{font-size:13px;padding:13px}
+}
+@media (min-width:900px){
+  #gridProductos{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));max-width:1280px;margin:0 auto;gap:16px}
+  .toolbar,.agregar-card,.barra-global,header{max-width:1280px}
+  .barra-global{border-radius:var(--radius) var(--radius) 0 0}
+  header{border-radius:0 0 24px 24px}
+}
+/* ═══ CORRECCIÓN DE TEXTOS EN EL MENÚ LATERAL (DRAWER) ═══ */
+.drawer .header-fields input,
+.drawer .header-fields select,
+.drawer .header-fields textarea,
+.drawer-seccion input,
+.drawer-seccion select,
+.drawer-seccion textarea {
+  color: #0f172a !important; /* Texto oscuro para que sea visible */
+  background: #ffffff !important; /* Fondo blanco */
+  border: 1.5px solid #e5eaf1 !important; /* Borde sutil */
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+}
+
+/* Placeholders (el texto de ejemplo como "Nombre del negocio") */
+.drawer .header-fields input::placeholder,
+.drawer .header-fields textarea::placeholder,
+.drawer-seccion input::placeholder,
+.drawer-seccion textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Iconos de los botones (+, 🗑️, 💾, 🍌) */
+.drawer .selector-negocio .btn-hdr {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #e5eaf1 !important;
+  box-shadow: none !important;
+}
+
+.drawer .selector-negocio .btn-hdr.danger {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+}
+
+/* Títulos de sección (NEGOCIOS, DATOS DEL NEGOCIO) */
+.drawer .seccion-titulo,
+.drawer-seccion-titulo {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px !important;
+  display: block !important;
+  margin-bottom: 8px !important;
+}
+
+/* Textos de ayuda (los que empiezan con 💡) */
+.drawer .header-fields .ayuda-mini {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  margin-bottom: 12px !important;
+  line-height: 1.4 !important;
+}
 </style>
 </head>
 <body>
@@ -5898,6 +6690,61 @@ body.v116-dark #toast.warn { background: #92400e !important; }
   .v116-stat-num { font-size: 22px; }
   .v116-stat-lbl { font-size: 9px; }
 }
+/* ═══ CORRECCIÓN DE TEXTOS EN EL MENÚ LATERAL (DRAWER) ═══ */
+.drawer .header-fields input,
+.drawer .header-fields select,
+.drawer .header-fields textarea,
+.drawer-seccion input,
+.drawer-seccion select,
+.drawer-seccion textarea {
+  color: #0f172a !important; /* Texto oscuro para que sea visible */
+  background: #ffffff !important; /* Fondo blanco */
+  border: 1.5px solid #e5eaf1 !important; /* Borde sutil */
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+}
+
+/* Placeholders (el texto de ejemplo como "Nombre del negocio") */
+.drawer .header-fields input::placeholder,
+.drawer .header-fields textarea::placeholder,
+.drawer-seccion input::placeholder,
+.drawer-seccion textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Iconos de los botones (+, 🗑️, 💾, 🍌) */
+.drawer .selector-negocio .btn-hdr {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #e5eaf1 !important;
+  box-shadow: none !important;
+}
+
+.drawer .selector-negocio .btn-hdr.danger {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+}
+
+/* Títulos de sección (NEGOCIOS, DATOS DEL NEGOCIO) */
+.drawer .seccion-titulo,
+.drawer-seccion-titulo {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px !important;
+  display: block !important;
+  margin-bottom: 8px !important;
+}
+
+/* Textos de ayuda (los que empiezan con 💡) */
+.drawer .header-fields .ayuda-mini {
+  color: #64748b !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  margin-bottom: 12px !important;
+  line-height: 1.4 !important;
+}
 </style>
 
 <script id="v116-patch-js">
@@ -7164,5 +8011,434 @@ body.v117-compact .toolbar > #toolbarExtra {
   } catch (e) {}
 })();
 </script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   miGestor v1.17.0 — Drawer lateral + Temas + Tarjeta compacta
+   Inyección automática. NO requiere modificar el HTML original.
+   ═══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  var TEMA_KEY = 'gestor_ventas_tema_v1';
+  var temaActual = 'azul';
+  try { temaActual = localStorage.getItem(TEMA_KEY) || 'azul'; } catch (e) {}
+
+  /* ─── Aplicar tema guardado INMEDIATAMENTE (antes de cualquier paint) ─── */
+  document.body.setAttribute('data-tema', temaActual);
+
+  /* ─── Funciones globales ─── */
+  window.abrirDrawer = function () {
+    var d = document.getElementById('drawer');
+    var o = document.getElementById('drawerOverlay');
+    if (d) d.classList.add('abierto');
+    if (o) o.classList.add('abierto');
+    document.body.classList.add('drawer-abierto');
+  };
+  window.cerrarDrawer = function () {
+    var d = document.getElementById('drawer');
+    var o = document.getElementById('drawerOverlay');
+    if (d) d.classList.remove('abierto');
+    if (o) o.classList.remove('abierto');
+    document.body.classList.remove('drawer-abierto');
+  };
+  window.aplicarTema = function (t) {
+    temaActual = t;
+    document.body.setAttribute('data-tema', t);
+    try { localStorage.setItem(TEMA_KEY, t); } catch (e) {}
+    actualizarTemaSeleccionado(t);
+    if (window.mostrarToast) window.mostrarToast('🎨 Tema aplicado: ' + t, 'info');
+  };
+  function actualizarTemaSeleccionado(t) {
+    Array.prototype.forEach.call(document.querySelectorAll('.tema-btn'), function (btn) {
+      btn.classList.toggle('sel', btn.getAttribute('data-tema') === t);
+    });
+  }
+
+  /* ─── Init ─── */
+  function init() {
+    var header = document.querySelector('header');
+    if (!header) {
+      console.warn('[miGestor v1.17] No se encontró <header>. Abortando inyección.');
+      return;
+    }
+    if (document.getElementById('drawer')) {
+      console.log('[miGestor v1.17] Drawer ya existe, se omite inyección.');
+      return;
+    }
+
+    /* 1) Referencias a elementos que vamos a mover */
+    var h1           = header.querySelector('h1');
+    var selectorWrap = document.getElementById('selectorNegocioWrap');
+    var headerFields = document.getElementById('headerFields');
+
+    /* Si no hay h1, lo creamos */
+    if (!h1) {
+      h1 = document.createElement('h1');
+      h1.innerHTML = '🏪 <span id="tituloNegocio">Mi Negocio</span>';
+    }
+
+    /* 2) Overlay del drawer */
+    var overlay = document.createElement('div');
+    overlay.id = 'drawerOverlay';
+    overlay.className = 'drawer-overlay';
+    overlay.addEventListener('click', window.cerrarDrawer);
+    document.body.appendChild(overlay);
+
+    /* 3) Drawer */
+    var drawer = document.createElement('aside');
+    drawer.id = 'drawer';
+    drawer.className = 'drawer';
+    document.body.appendChild(drawer);
+
+    /* Cabecera del drawer */
+    var drawerHeader = document.createElement('div');
+    drawerHeader.className = 'drawer-header';
+    drawerHeader.innerHTML = '<strong>🏪 Menú</strong>';
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✖';
+    closeBtn.title = 'Cerrar';
+    closeBtn.addEventListener('click', window.cerrarDrawer);
+    drawerHeader.appendChild(closeBtn);
+    drawer.appendChild(drawerHeader);
+
+    /* Sección Negocios (mueve #selectorNegocioWrap) */
+    var secNeg = document.createElement('div');
+    secNeg.className = 'drawer-seccion';
+    secNeg.innerHTML = '<div class="drawer-seccion-titulo">Negocios</div>';
+    drawer.appendChild(secNeg);
+    if (selectorWrap) {
+      selectorWrap.style.display = 'flex';
+      selectorWrap.style.marginBottom = '8px';
+      secNeg.appendChild(selectorWrap);
+    }
+
+    /* Sección Datos del negocio (mueve #headerFields) */
+    var secDatos = document.createElement('div');
+    secDatos.className = 'drawer-seccion';
+    secDatos.innerHTML = '<div class="drawer-seccion-titulo">Datos del negocio</div>';
+    drawer.appendChild(secDatos);
+    if (headerFields) {
+      headerFields.classList.remove('collapsed');
+      secDatos.appendChild(headerFields);
+    }
+
+    /* Sección Productos */
+    var secProd = document.createElement('div');
+    secProd.className = 'drawer-seccion';
+    secProd.innerHTML =
+      '<div class="drawer-seccion-titulo">Productos</div>';
+    var prodBtns = [
+      { txt: '➕ Agregar producto',          fn: 'alternarAgregar' },
+      { txt: '🏷️ Gestionar categorías',      fn: 'abrirModalCategorias' },
+      { txt: '📷 Lote de fotos',             fn: 'abrirCargaFotosLotes' },
+      { txt: '📥 Importar HTML',             fn: 'importarHTMLCatalogo' },
+      { txt: '📝 Lote de texto',             fn: 'abrirCargaTexto' },
+      { txt: '🏷️ Categorizar lote',          fn: 'abrirModalCategorizarLote' }
+    ];
+    prodBtns.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = b.txt;
+      btn.addEventListener('click', function () {
+        window.cerrarDrawer();
+        setTimeout(function () {
+          if (typeof window[b.fn] === 'function') window[b.fn]();
+        }, 150);
+      });
+      secProd.appendChild(btn);
+    });
+    var btnVaciar = document.createElement('button');
+    btnVaciar.type = 'button';
+    btnVaciar.className = 'danger';
+    btnVaciar.textContent = '🗑️ Vaciar catálogo';
+    btnVaciar.addEventListener('click', function () {
+      window.cerrarDrawer();
+      setTimeout(function () {
+        if (typeof window.limpiarTodoCatalogo === 'function') window.limpiarTodoCatalogo();
+      }, 150);
+    });
+    secProd.appendChild(btnVaciar);
+    drawer.appendChild(secProd);
+
+    /* Sección Temas */
+    var secTemas = document.createElement('div');
+    secTemas.className = 'drawer-seccion';
+    var tituloTemas = document.createElement('div');
+    tituloTemas.className = 'drawer-seccion-titulo';
+    tituloTemas.textContent = 'Tema del encabezado';
+    secTemas.appendChild(tituloTemas);
+
+    var temaGrid = document.createElement('div');
+    temaGrid.className = 'tema-grid';
+    var TEMAS = [
+      { id: 'azul',     emoji: '🔵', label: 'Azul'     },
+      { id: 'verde',    emoji: '🟢', label: 'Verde'    },
+      { id: 'rojo',     emoji: '🔴', label: 'Rojo'     },
+      { id: 'morado',   emoji: '🟣', label: 'Morado'   },
+      { id: 'naranja',  emoji: '🟠', label: 'Naranja'  },
+      { id: 'negro',    emoji: '⚫', label: 'Negro'    },
+      { id: 'rosa',     emoji: '🌸', label: 'Rosa'     },
+      { id: 'turquesa', emoji: '🌊', label: 'Turquesa' }
+    ];
+    TEMAS.forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tema-btn';
+      b.setAttribute('data-tema', t.id);
+      b.textContent = t.emoji + ' ' + t.label;
+      b.addEventListener('click', function () { window.aplicarTema(t.id); });
+      temaGrid.appendChild(b);
+    });
+    secTemas.appendChild(temaGrid);
+    drawer.appendChild(secTemas);
+
+    /* Info */
+    var secInfo = document.createElement('div');
+    secInfo.className = 'drawer-seccion';
+    secInfo.style.cssText = 'text-align:center;font-size:11px;color:#888;padding-bottom:24px';
+    secInfo.textContent = 'miGestor v1.17.0';
+    drawer.appendChild(secInfo);
+
+    /* 4) Reconstruir header (SIN destruir el h1 ni los campos movidos) */
+    var headerTop = document.createElement('div');
+    headerTop.className = 'header-top';
+
+    var hamburger = document.createElement('button');
+    hamburger.type = 'button';
+    hamburger.className = 'btn-hamburguesa';
+    hamburger.innerHTML = '☰';
+    hamburger.title = 'Abrir menú';
+    hamburger.addEventListener('click', window.abrirDrawer);
+    headerTop.appendChild(hamburger);
+
+    /* Mover el h1 (con su span#tituloNegocio) al headerTop */
+    if (h1.parentNode) h1.parentNode.removeChild(h1);
+    headerTop.appendChild(h1);
+
+    /* Ocultar (no eliminar) el resto de hijos del header,
+       para no romper aplicarEstadoHeader / toggleHeader */
+    Array.prototype.forEach.call(header.children, function (c) {
+      c.style.display = 'none';
+    });
+
+    /* Insertar headerTop al principio */
+    header.insertBefore(headerTop, header.firstChild);
+
+    /* 5) Limpiar toolbar: dejar solo #filtroCategoria + .vista-toggle, agregar buscador */
+    var toolbar = document.querySelector('.toolbar');
+    if (toolbar) {
+      Array.prototype.forEach.call(toolbar.children, function (c) {
+        if (c.id === 'filtroCategoria') return;
+        if (c.classList.contains('vista-toggle')) return;
+        if (c.id === 'buscarProducto') return;
+        if (c.id === 'txtAgregar' || c.id === 'txtToggleImportar' ||
+            c.id === 'btnToggleImportar' || c.id === 'toolbarExtra') return;
+        c.style.display = 'none';
+      });
+
+      /* Buscador de productos */
+      var searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.id = 'buscarProducto';
+      searchInput.placeholder = '🔍 Buscar producto...';
+      toolbar.insertBefore(searchInput, toolbar.firstChild);
+
+      searchInput.addEventListener('input', aplicarBusqueda);
+      /* Reaplicar búsqueda después de cada renderGrid */
+      var _orig = window.renderGrid;
+      if (typeof _orig === 'function') {
+        window.renderGrid = function () {
+          _orig.apply(this, arguments);
+          aplicarBusqueda();
+        };
+      }
+    }
+
+    function aplicarBusqueda() {
+      var inp = document.getElementById('buscarProducto');
+      if (!inp) return;
+      var q = inp.value.toLowerCase().trim();
+      var grid = document.getElementById('gridProductos');
+      if (!grid) return;
+      Array.prototype.forEach.call(grid.children, function (card) {
+        if (!card.classList.contains('tarjeta') && !card.classList.contains('fila-lista')) return;
+        if (!q) { card.style.display = ''; return; }
+        card.style.display = (card.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+      });
+    }
+
+    /* 6) Tarjeta expandible al tocar */
+    var grid = document.getElementById('gridProductos');
+    if (grid) {
+      grid.addEventListener('click', function (e) {
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        var card = e.target.closest('.tarjeta');
+        if (!card) return;
+        if (grid.classList.contains('vista-lista')) return;
+        card.classList.toggle('expandida');
+      });
+    }
+
+    /* 7) Marcar tema activo */
+    actualizarTemaSeleccionado(temaActual);
+
+    /* 8) ESC cierra drawer */
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') window.cerrarDrawer();
+    });
+
+    console.log('[miGestor v1.17.0] ✅ Drawer, temas y tarjeta compacta inyectados.');
+  }
+
+  /* Ejecutar cuando el DOM esté listo */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+/* ═══════════════════════════════════════════════════════════
+   REDISEÑO 1.18 — Modal flotante + click en tarjeta
+   ═══════════════════════════════════════════════════════════ */
+var _detalleCardRef = null;
+
+function abrirDetalleProducto(id) {
+  var prod = productos.find(function(p){ return String(p.id) === String(id); });
+  if (!prod) return;
+
+  _detalleCardRef = document.querySelector('#gridProductos .tarjeta[data-id="'+id+'"]') ||
+                    document.querySelector('#gridProductos .fila-lista[data-id="'+id+'"]');
+
+  // Foto
+  var fotoHtml = prod.foto ? '<img src="'+prod.foto+'" alt="">' : '📷';
+  var det = prod.descuento || calcularDescuento(prod.precio, prod.precioAnterior);
+  var badge = det ? '<span class="det-badge">-'+det+'%</span>' :
+              (prod.etiqueta ? '<span class="det-badge etiqueta">'+esc(prod.etiqueta)+'</span>' : '');
+  document.getElementById('detFoto').innerHTML = fotoHtml + badge;
+
+  // Info
+  document.getElementById('detCat').textContent = prod.categoria || 'General';
+  document.getElementById('detNombre').textContent = prod.nombre || '';
+
+  var elP = document.getElementById('detPrecio');
+  if (prod.precio != null && prod.precio !== '') {
+    elP.textContent = money(prod.precio);
+    elP.classList.remove('sin-precio');
+  } else {
+    elP.textContent = 'Precio a consultar';
+    elP.classList.add('sin-precio');
+  }
+
+  var elPA = document.getElementById('detPrecioAnt');
+  elPA.textContent = prod.precioAnterior ? money(prod.precioAnterior) : '';
+  elPA.style.display = prod.precioAnterior ? 'inline' : 'none';
+
+  document.getElementById('detDesc').textContent = prod.descripcion || '';
+  document.getElementById('detDesc').style.display = prod.descripcion ? 'block' : 'none';
+
+  var elE = document.getElementById('detEnlace');
+  if (prod.enlace) {
+    elE.href = prod.enlace;
+    elE.textContent = '🔗 Ver enlace del producto';
+    elE.style.display = 'inline-flex';
+  } else {
+    elE.style.display = 'none';
+  }
+
+  // Botones: agotar/reactivar según estado
+  var btnAgotar = document.getElementById('detBtnAgotar');
+  if (prod.agotado) {
+    btnAgotar.className = 'da-reactivar';
+    btnAgotar.innerHTML = '♻️ Reactivar';
+  } else {
+    btnAgotar.className = 'da-agotar';
+    btnAgotar.innerHTML = '📦 Marcar agotado';
+  }
+
+  document.getElementById('modalDetalleProducto').classList.add('abierto');
+  document.body.style.overflow = 'hidden';
+}
+
+function cerrarDetalleProducto() {
+  document.getElementById('modalDetalleProducto').classList.remove('abierto');
+  document.body.style.overflow = '';
+  _detalleCardRef = null;
+}
+
+function detalleAccion(selector) {
+  if (!_detalleCardRef) { cerrarDetalleProducto(); return; }
+  var btn = _detalleCardRef.querySelector(selector);
+  cerrarDetalleProducto();
+  if (btn) setTimeout(function(){ btn.click(); }, 30);
+}
+
+/* ── Click en tarjeta → abre modal ── */
+(function(){
+  var grid = document.getElementById('gridProductos');
+  if (!grid) return;
+  grid.addEventListener('click', function(e){
+    if (e.target.closest('button')) return; // botones trabajan normal
+    var card = e.target.closest('.tarjeta, .fila-lista');
+    if (!card) return;
+    var id = card.dataset.id;
+    if (!id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    abrirDetalleProducto(id);
+  }, true); // capture: evita que se expanda la tarjeta
+})();
+
+/* ── Garantiza data-id en las tarjetas ── */
+function inyectarDataIds() {
+  var cards = document.querySelectorAll('#gridProductos .tarjeta:not([data-id]), #gridProductos .fila-lista:not([data-id])');
+  cards.forEach(function(card){
+    var nombreEl = card.querySelector('.tarjeta-nombre, .fl-nombre');
+    if (!nombreEl) return;
+    var nombre = nombreEl.textContent.trim();
+    // Match por nombre; si hay varios, desempata por precio
+    var candidatos = productos.filter(function(p){ return (p.nombre||'').trim() === nombre; });
+    if (candidatos.length === 1) {
+      card.dataset.id = candidatos[0].id;
+    } else if (candidatos.length > 1) {
+      var precioTxt = (card.querySelector('.tarjeta-precio, .fl-precio')||{}).textContent || '';
+      var match = candidatos.find(function(p){ return money(p.precio) === precioTxt; });
+      if (match) card.dataset.id = match.id;
+    }
+  });
+}
+
+/* Observa cambios del grid para inyectar data-id automáticamente */
+(function(){
+  var grid = document.getElementById('gridProductos');
+  if (!grid) return;
+  new MutationObserver(inyectarDataIds).observe(grid, { childList: true, subtree: true });
+  // Ejecuta al cargar
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(inyectarDataIds, 200); });
+})();
+</script>
+<!-- ═══ Modal flotante de detalle de producto ═══ -->
+<div id="modalDetalleProducto" onclick="if(event.target===this)cerrarDetalleProducto()">
+  <div class="detalle-caja">
+    <button class="detalle-cerrar" onclick="cerrarDetalleProducto()">✕</button>
+    <div class="detalle-foto" id="detFoto">📷</div>
+    <div class="detalle-body">
+      <span class="detalle-cat" id="detCat"></span>
+      <h2 class="detalle-nombre" id="detNombre"></h2>
+      <div class="detalle-precios">
+        <span class="detalle-precio" id="detPrecio"></span>
+        <span class="detalle-precio-ant" id="detPrecioAnt"></span>
+      </div>
+      <p class="detalle-desc" id="detDesc"></p>
+      <a class="detalle-enlace" id="detEnlace" target="_blank" rel="noopener" style="display:none"></a>
+      <div class="detalle-acciones">
+        <button class="da-whatsapp" id="detBtnWhats" onclick="detalleAccion('.btn-enviar')">💬 Enviar por WhatsApp</button>
+        <button class="da-editar" id="detBtnEditar" onclick="detalleAccion('.btn-editar')">✏️ Editar</button>
+        <button class="da-agotar" id="detBtnAgotar" onclick="detalleAccion('.btn-agotar, .btn-reactivar')">📦 Agotar</button>
+        <button class="da-eliminar" id="detBtnEliminar" onclick="detalleAccion('.btn-eliminar')">🗑️ Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
